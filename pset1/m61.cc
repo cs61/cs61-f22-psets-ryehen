@@ -52,7 +52,7 @@ uintptr_t heap_max;                       // largest address in any region ever 
 
 void* m61_malloc(size_t sz, const char* file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
-    if (default_buffer.pos + sz > default_buffer.size) {
+    if (default_buffer.pos + sz > default_buffer.size || default_buffer.pos + sz < sz) {
         // Not enough space left in default buffer for allocation
         nfail++;
         fail_size += sz;
