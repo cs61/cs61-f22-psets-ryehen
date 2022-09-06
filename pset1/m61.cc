@@ -34,7 +34,14 @@ m61_memory_buffer::~m61_memory_buffer() {
     munmap(this->buffer, this->size);
 }
 
-
+unsigned long long nactive = 0;           // number of active allocations [#malloc - #free]
+unsigned long long active_size = 0;       // number of bytes in active allocations
+unsigned long long ntotal = 0;            // number of allocations, total
+unsigned long long total_size = 0;        // number of bytes in allocations, total
+unsigned long long nfail = 0;             // number of failed allocation attempts
+unsigned long long fail_size = 0;         // number of bytes in failed allocation attempts
+uintptr_t heap_min;                       // smallest address in any region ever allocated
+uintptr_t heap_max;                       // largest address in any region ever allocated
 
 
 /// m61_malloc(sz, file, line)
@@ -45,15 +52,34 @@ m61_memory_buffer::~m61_memory_buffer() {
 
 void* m61_malloc(size_t sz, const char* file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
-    // Your code here.
     if (default_buffer.pos + sz > default_buffer.size) {
         // Not enough space left in default buffer for allocation
+        nfail++;
+        fail_size += sz;
         return nullptr;
     }
 
     // Otherwise there is enough space; claim the next `sz` bytes
-    void* ptr = &default_buffer.buffer[default_buffer.pos];
+    // Ensure alignment works for max size
+    //default_buffer.pos += default_buffer.pos % alignof(std::max_align_t)
+    unsigned long alignmentDiff = (uintptr_t) &default_buffer.buffer[default_buffer.pos] % alignof(std::max_align_t);
+    void* ptr = &default_buffer.buffer[default_buffer.pos + alignmentDiff];
+
+    if (!heap_min || (uintptr_t) ptr < heap_min) {
+        heap_min = (uintptr_t) ptr;
+    }
+
+    if (!heap_max || (uintptr_t) ptr > heap_max) {
+        heap_max = (uintptr_t) ptr + sz;
+    }
+
     default_buffer.pos += sz;
+    
+    ntotal++;
+    nactive++;
+    active_size += sz;
+    total_size += sz;
+
     return ptr;
 }
 
@@ -68,6 +94,12 @@ void m61_free(void* ptr, const char* file, int line) {
     // avoid uninitialized variable warnings
     (void) ptr, (void) file, (void) line;
     // Your code here. The handout code does nothing!
+    if (ptr == nullptr) {
+        return;
+    }
+
+    nactive--;
+    //active_size -= sizeof
 }
 
 
@@ -95,7 +127,15 @@ m61_statistics m61_get_statistics() {
     // Your code here.
     // The handout code sets all statistics to enormous numbers.
     m61_statistics stats;
-    memset(&stats, 255, sizeof(m61_statistics));
+    stats.nactive = nactive;
+    stats.active_size = active_size;
+    stats.ntotal = ntotal;
+    stats.total_size = total_size;
+    stats.nfail = nfail;
+    stats.fail_size = fail_size;
+    stats.heap_min = heap_min;
+    stats.heap_max = heap_max;
+    //memset(&stats, 0, sizeof(m61_statistics));
     return stats;
 }
 
