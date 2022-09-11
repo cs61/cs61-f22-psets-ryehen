@@ -14,8 +14,8 @@ int main() {
         if (!heap_first || heap_first > (uintptr_t) p) {
             heap_first = (uintptr_t) p;
         }
-        if (!heap_last || heap_last < (uintptr_t) p + sz) {
-            heap_last = (uintptr_t) p + sz;
+        if (!heap_last || heap_last < (uintptr_t) p + sz - 1) {
+            heap_last = (uintptr_t) p + sz - 1;
         }
         m61_free(p);
     }
