@@ -25,15 +25,13 @@ std::vector<void*> freedPointers;
 
 // Map from ptr to region size
 std::map<void*, size_t> freeRegions;
-
 // Maps ptr address to metadata
-std::unordered_map<void*, metadata> metadataMap;
+std::map<void*, metadata> metadataMap;
 
 struct m61_memory_buffer {
     char* buffer;
     size_t pos = 0;
     size_t size = 8 << 20; /* 8 MiB */
-    bool filledOnce; /* lets us know if we need to rely on previous frees to alloc memory */
 
     m61_memory_buffer();
     ~m61_memory_buffer();
@@ -76,7 +74,13 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
 
     void* ptr = nullptr;
+    if (nactive == 0) {
+        default_buffer.pos = 0;
+        freeRegions.clear();
+        freeRegions[&default_buffer.buffer[0]] = 8 << 20;
+    }
     size_t currentPos = default_buffer.pos;
+    unsigned long alignmentDiff = (uintptr_t) sz % alignof(std::max_align_t);
     if (currentPos + sz > default_buffer.size || currentPos + sz < sz) {
         // Not enough space left in default buffer for allocation
         bool sufficientBlockFound = false;
@@ -88,7 +92,7 @@ void* m61_malloc(size_t sz, const char* file, int line) {
                     ptr = regionPtr;
                     sufficientBlockFound = true;
                     if (regionSize - sz > 0 ) {
-                        freeRegions[regionPtr + sz] = regionSize - sz;
+                        freeRegions[(void*) ((uintptr_t) regionPtr + sz + alignmentDiff)] = regionSize - sz - alignmentDiff;
                     }
                     freeRegions.erase(regionPtr);
                     break;           
@@ -124,10 +128,8 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     // Only increment buffer pos if we're not using realloced memory
     if (currentPos == default_buffer.pos) {
         // Preserve alignment as we update buffer pos
-        unsigned long alignmentDiff = (uintptr_t) sz % alignof(std::max_align_t);
         default_buffer.pos += (sz + alignmentDiff);
     }
-    
     
     ntotal++;
     nactive++;
@@ -154,48 +156,47 @@ void m61_free(void* ptr, const char* file, int line) {
 
     const char* errmsg = "";
     if (metadataMap.count(ptr) > 0) {
-        if (metadataMap[ptr].freed == true) {
-            errmsg = "double free";
-        } else {
-            --nactive;
-            active_size -= metadataMap[ptr].size;
-            metadataMap[ptr].freed = true;
+        --nactive;
+        active_size -= metadataMap[ptr].size;
+        metadataMap[ptr].freed = true;
 
-            // Update info on contiguous regions w space for allocation
-            bool contiguousFound = false;
-            size_t sz = metadataMap[ptr].size;
-            size_t alignmentAdjustment = sz % alignof(std::max_align_t);
-            
-            std::cout << "Before: " << freeRegions.size() << std::endl;
-            for (auto& [regionPtr, size] : freeRegions) {
-                if (regionPtr + size == ptr) {
-                    freeRegions[regionPtr] += (sz + alignmentAdjustment);
-                    contiguousFound = true;
-                    break;
+        // Update info on contiguous regions w space for allocation
+        bool contiguousFound = false;
+        size_t sz = metadataMap[ptr].size;
+        size_t alignmentAdjustment = sz % alignof(std::max_align_t);
+        
+        void* adjacentAddress = (void*)((uintptr_t) ptr + sz + alignmentAdjustment);
+        if (freeRegions.count(adjacentAddress) == 1) {
+            freeRegions[ptr] = freeRegions[adjacentAddress] + sz + alignmentAdjustment;
+            freeRegions.erase(adjacentAddress);
+            contiguousFound = true;
+        }
+        
+        for (auto& [regionPtr, size] : freeRegions) {
+            if ((void*) ((uintptr_t) regionPtr + size) == ptr) {
+                if (contiguousFound) {
+                    freeRegions[regionPtr] += freeRegions[ptr];
+                    freeRegions.erase(ptr);
+                } else {
+                    freeRegions[regionPtr] += (sz + alignmentAdjustment);  
                 }
+                contiguousFound = true;
+                break;
             }
-
-            if (!contiguousFound) {
-                freeRegions[ptr] = sz + alignmentAdjustment;
-            } else {
-                std::cout << "After: " << freeRegions.size() << std::endl;
-            }
-            return;
         }
 
-    } else {
-        errmsg = "not in heap";
-        // for (auto & [key, value] : metadataMap) {
-        //     if (key < ptr && ptr < (char*) key + value.size) {
-        //         errmsg = "not allocated";
-        //         break;
-        //     }
+        if (!contiguousFound) {
+            freeRegions[ptr] = sz + alignmentAdjustment;
+        }
+
+        // for (auto& [whatever, size] : freeRegions) {
+        //     std::cout << size << std::endl;
         // }
+        // m61_print_statistics();
+        // std::cout << freeRegions.size() << std::endl;
+        
     }
-
-    fprintf(stderr, "MEMORY BUG: %s:%u: invalid free of pointer %p, %s\n", file, line, ptr, errmsg);
-
-
+    return;
 }
 
 
