@@ -27,9 +27,8 @@ std::vector<void*> freedPointers;
 
 // Map from ptr to region size
 std::map<void*, size_t> freeRegions;
-
 // Maps ptr address to metadata
-std::unordered_map<void*, metadata> metadataMap;
+std::map<void*, metadata> metadataMap;
 
 const int MaxAlignment = alignof(std::max_align_t);
 
@@ -88,7 +87,6 @@ struct m61_memory_buffer {
     char* buffer;
     size_t pos = 0;
     size_t size = 8 << 20; /* 8 MiB */
-    bool filledOnce; /* lets us know if we need to rely on previous frees to alloc memory */
 
     m61_memory_buffer();
     ~m61_memory_buffer();
