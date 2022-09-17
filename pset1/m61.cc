@@ -12,6 +12,9 @@
 #include <unordered_set>
 #include "hexdump.hh"
 
+
+const int MaxAlignment = alignof(std::max_align_t);
+
 // Stores info regarding each block of memory
 struct metadata {
     const char* file;
