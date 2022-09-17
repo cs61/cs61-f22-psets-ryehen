@@ -10,6 +10,9 @@
 #include <map>
 #include <iostream>
 
+
+const int MaxAlignment = alignof(std::max_align_t);
+
 // Stores info regarding each block of memory
 struct metadata {
     const char* file;
@@ -80,7 +83,11 @@ void* m61_malloc(size_t sz, const char* file, int line) {
         freeRegions[&default_buffer.buffer[0]] = 8 << 20;
     }
     size_t currentPos = default_buffer.pos;
-    unsigned long alignmentDiff = (uintptr_t) sz % alignof(std::max_align_t);
+
+    // Calculate alignment adjustment required
+    int alignmentRemainder = sz % MaxAlignment;
+    int alignmentAdjustment = (alignmentRemainder > 0.5 * MaxAlignment) ? MaxAlignment - alignmentRemainder : alignmentRemainder;
+    
     if (currentPos + sz > default_buffer.size || currentPos + sz < sz) {
         // Not enough space left in default buffer for allocation
         bool sufficientBlockFound = false;
@@ -91,11 +98,11 @@ void* m61_malloc(size_t sz, const char* file, int line) {
                 if (regionSize >= sz) {
                     ptr = regionPtr;
                     sufficientBlockFound = true;
-                    if (regionSize - sz > 0 ) {
-                        freeRegions[(void*) ((uintptr_t) regionPtr + sz + alignmentDiff)] = regionSize - sz - alignmentDiff;
+                    if (regionSize - sz - alignmentAdjustment > 0 ) {
+                        freeRegions[(void*) ((uintptr_t) regionPtr + sz + alignmentAdjustment)] = regionSize - sz - alignmentAdjustment;
                     }
                     freeRegions.erase(regionPtr);
-                    break;           
+                    break;
                 }
             }
         }
@@ -121,14 +128,14 @@ void* m61_malloc(size_t sz, const char* file, int line) {
         heap_min = (uintptr_t) ptr;
     }
 
-    if (!heap_max || (uintptr_t) ptr + sz > heap_max) {
-        heap_max = (uintptr_t) ptr + sz;
+    if (!heap_max || (uintptr_t) ptr + sz - 1 > heap_max) {
+        heap_max = (uintptr_t) ptr + sz - 1;
     }
 
     // Only increment buffer pos if we're not using realloced memory
     if (currentPos == default_buffer.pos) {
         // Preserve alignment as we update buffer pos
-        default_buffer.pos += (sz + alignmentDiff);
+        default_buffer.pos += (sz + alignmentAdjustment);
     }
     
     ntotal++;
@@ -163,7 +170,8 @@ void m61_free(void* ptr, const char* file, int line) {
         // Update info on contiguous regions w space for allocation
         bool contiguousFound = false;
         size_t sz = metadataMap[ptr].size;
-        size_t alignmentAdjustment = sz % alignof(std::max_align_t);
+        int alignmentRemainder = sz % MaxAlignment;
+        int alignmentAdjustment = (alignmentRemainder > 0.5 * MaxAlignment) ? MaxAlignment - alignmentRemainder : alignmentRemainder;
         
         void* adjacentAddress = (void*)((uintptr_t) ptr + sz + alignmentAdjustment);
         if (freeRegions.count(adjacentAddress) == 1) {
