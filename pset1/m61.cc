@@ -9,18 +9,22 @@
 #include <unordered_map>
 #include <map>
 #include <iostream>
+#include "hexdump.hh"
 
 
 const int MaxAlignment = alignof(std::max_align_t);
 
 // Stores info regarding each block of memory
-struct metadata {
-    const char* file;
-    int line;
-    size_t size;
-    size_t pos;
-    bool freed;
+struct metadata {               // Distances from payload pointer start
+    const char* file;           // -32
+    size_t size;                // -24
+    int line;                   // -16 
+    bool freed;                 // -12
+    char allocationKey;         // -11
 };
+
+const int metadataAlottment = 32;
+const char allocationKey = '|';
 
 // List of pointers that have been freed
 // Reduces time
@@ -88,18 +92,20 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     int alignmentRemainder = sz % MaxAlignment;
     int alignmentAdjustment = (alignmentRemainder > 0.5 * MaxAlignment) ? MaxAlignment - alignmentRemainder : alignmentRemainder;
     
-    if (currentPos + sz > default_buffer.size || currentPos + sz < sz) {
+    if (currentPos + sz + metadataAlottment > default_buffer.size || currentPos + sz + metadataAlottment < sz) {
         // Not enough space left in default buffer for allocation
         bool sufficientBlockFound = false;
         
         // Check if space can be found among freed pointers
         if (freeRegions.size() > 0) {
             for (auto& [regionPtr, regionSize] : freeRegions) {
-                if (regionSize >= sz) {
+                if (regionSize >= sz + metadataAlottment && sz + metadataAlottment > sz) {
                     ptr = regionPtr;
                     sufficientBlockFound = true;
-                    if (regionSize - sz - alignmentAdjustment > 0 ) {
-                        freeRegions[(void*) ((uintptr_t) regionPtr + sz + alignmentAdjustment)] = regionSize - sz - alignmentAdjustment;
+                    
+                    int newRegionSize = regionSize - sz - alignmentAdjustment - metadataAlottment;
+                    if ( newRegionSize > 0 ) {
+                        freeRegions[(void*) ((uintptr_t) regionPtr + sz + alignmentAdjustment + metadataAlottment)] = newRegionSize;
                     }
                     freeRegions.erase(regionPtr);
                     break;
@@ -121,21 +127,23 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     
     
     // Store ptr metadata
-    metadataMap[ptr] = {file, line, sz, currentPos, false};
+    //metadataMap[ptr] = {file, line, sz, currentPos, false};
+    metadata newMetadata = {file, sz, line, false, '|'};
+    *((metadata*) ptr) = newMetadata;  
 
     // Update max / min heap
     if (!heap_min || (uintptr_t) ptr < heap_min) {
         heap_min = (uintptr_t) ptr;
     }
 
-    if (!heap_max || (uintptr_t) ptr + sz - 1 > heap_max) {
-        heap_max = (uintptr_t) ptr + sz - 1;
+    if (!heap_max || (uintptr_t) ptr + sz + metadataAlottment - 1 > heap_max) {
+        heap_max = (uintptr_t) ptr + sz + metadataAlottment - 1;
     }
 
     // Only increment buffer pos if we're not using realloced memory
     if (currentPos == default_buffer.pos) {
         // Preserve alignment as we update buffer pos
-        default_buffer.pos += (sz + alignmentAdjustment);
+        default_buffer.pos += (sz + metadataAlottment + alignmentAdjustment);
     }
     
     ntotal++;
@@ -143,6 +151,8 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     active_size += sz;
     total_size += sz;
 
+    // Return pointer to payload, not to start of metadata
+    ptr = (void*) ((uintptr_t) ptr + 32);
     return ptr;
 }
 
@@ -161,21 +171,31 @@ void m61_free(void* ptr, const char* file, int line) {
         return;
     }
 
-    const char* errmsg = "";
-    if (metadataMap.count(ptr) > 0) {
+    //const char* errmsg = "";
+
+    metadata ptrMetadata = (metadata) *(metadata*) ((uintptr_t) ptr - 32);
+    //hexdump_object(ptrMetadata);
+    //hexdump_object((*(metadata*) ((uintptr_t) ptr - 32)));
+    //std::cout << ptrMetadata.allocationKey << std::endl;
+    //if (ptrMetadata.allocationKey == allocationKey) {
         --nactive;
-        active_size -= metadataMap[ptr].size;
-        metadataMap[ptr].freed = true;
+        active_size -= ptrMetadata.size;
+        *(bool*) ((uintptr_t) ptr - 12) = true;
+        
 
         // Update info on contiguous regions w space for allocation
         bool contiguousFound = false;
-        size_t sz = metadataMap[ptr].size;
+        size_t sz = ptrMetadata.size;
         int alignmentRemainder = sz % MaxAlignment;
         int alignmentAdjustment = (alignmentRemainder > 0.5 * MaxAlignment) ? MaxAlignment - alignmentRemainder : alignmentRemainder;
         
+        // Get rid of previous memory
+        memset(ptr, 0, sz);
+        
+        // Combine adjacent free blocks
         void* adjacentAddress = (void*)((uintptr_t) ptr + sz + alignmentAdjustment);
         if (freeRegions.count(adjacentAddress) == 1) {
-            freeRegions[ptr] = freeRegions[adjacentAddress] + sz + alignmentAdjustment;
+            freeRegions[ptr] = freeRegions[adjacentAddress] + metadataAlottment + sz + alignmentAdjustment;
             freeRegions.erase(adjacentAddress);
             contiguousFound = true;
         }
@@ -186,7 +206,7 @@ void m61_free(void* ptr, const char* file, int line) {
                     freeRegions[regionPtr] += freeRegions[ptr];
                     freeRegions.erase(ptr);
                 } else {
-                    freeRegions[regionPtr] += (sz + alignmentAdjustment);  
+                    freeRegions[regionPtr] += (metadataAlottment + sz + alignmentAdjustment);  
                 }
                 contiguousFound = true;
                 break;
@@ -194,7 +214,7 @@ void m61_free(void* ptr, const char* file, int line) {
         }
 
         if (!contiguousFound) {
-            freeRegions[ptr] = sz + alignmentAdjustment;
+            freeRegions[ptr] = metadataAlottment + sz + alignmentAdjustment;
         }
 
         // for (auto& [whatever, size] : freeRegions) {
@@ -203,7 +223,7 @@ void m61_free(void* ptr, const char* file, int line) {
         // m61_print_statistics();
         // std::cout << freeRegions.size() << std::endl;
         
-    }
+    //}
     return;
 }
 
