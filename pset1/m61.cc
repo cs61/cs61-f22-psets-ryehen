@@ -16,13 +16,16 @@
 const int MaxAlignment = alignof(std::max_align_t);
 
 // Stores info regarding each block of memory
-struct metadata {
-    const char* file;
-    int line;
-    size_t size;
-    size_t pos;
-    bool freed;
+struct metadata {               // Distances from payload pointer start
+    const char* file;           // -32
+    size_t size;                // -24
+    int line;                   // -16 
+    bool freed;                 // -12
+    char allocationKey;         // -11
 };
+
+const int metadataAlottment = 32;
+const char allocationKey = '|';
 
 // List of pointers that have been freed
 // Reduces time
