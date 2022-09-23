@@ -12,5 +12,6 @@ Grading notes (if any)
 
 Extra credit attempted (if any)
 -------------------------------
-Added an additional test that checks for boundary write errors that occur past, but not ON the boundary.
-Added an additional test that checks to make sure no undefined behavior occurs when requesting callocs with either counts or sizes of 0.
+Added an additional test that checks for boundary write errors that occur past, but not ON the boundary. (test52)
+Added an additional test that checks to make sure no undefined behavior occurs when requesting callocs with either counts or sizes of 0. (test53)
+Added tests to evaluate correctness of realloc (tests54-58)

@@ -373,6 +373,44 @@ m61_statistics m61_get_statistics() {
     return stats;
 }
 
+/// m61_realloc(ptr, sz, file, line)
+///  Reallocates currently allocated memory
+
+void* m61_realloc(void* ptr, size_t sz, const char* file, int line) {
+    // Ensure pointer is to a previously allocated block
+    // Ensure requested size is greater than zero
+    if (activePointers.count((uintptr_t) ptr) == 0 || sz <= 0) {
+        nfail++;
+        fail_size += sz;
+        return nullptr;
+    }
+
+    // Call malloc to create memory region with newly requested size
+    void* newPtr = m61_malloc(sz, file, line);
+
+    if (newPtr == nullptr) {
+        nfail++;
+        fail_size += sz;
+        return nullptr;
+    }
+    
+    // Copy data from old ptr to new ptr
+    size_t i = 0;
+    startingMetadata* oldPtrMetadata = (startingMetadata*) ((uintptr_t) ptr - startingMetadataAlottment);
+    while (i < oldPtrMetadata->size && i < sz) {
+        char transferByte = *((char*) ((uintptr_t) ptr + i));
+        char* byteDestinationAddress = (char*) ((uintptr_t) newPtr + i);
+        
+        memset(byteDestinationAddress, transferByte, 1);
+        i++;
+    }
+
+    // Free previously allocated block
+    m61_free(ptr);
+    
+    return newPtr;
+}
+
 
 /// m61_print_statistics()
 ///    Prints the current memory statistics.
