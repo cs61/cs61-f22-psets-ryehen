@@ -37,18 +37,18 @@ struct endingMetadata {
     size_t totalSize;
 };
 
-// Case in which a region was never allocated
-// Allows us to check if entire region where metadata should be, lacks it
-struct deadMetadata {
-    char metadata[32];
-};
-
 // Constants for greater readability
 const int startingMetadataAlottment = 32;
 const int endingMetadataAlottment = 16;
 const int totalMetadataAlottment = startingMetadataAlottment + endingMetadataAlottment;
 const char allocationChar = '|';
 const char neverAllocatedChar = 'X';
+
+// Case in which a region was never allocated
+// Allows us to check if entire region where metadata should be, lacks it
+struct deadMetadata {
+    char metadata[startingMetadataAlottment];
+};
 
 // Map from ptr to total free region size
 std::map<uintptr_t, size_t> freeRegions;
@@ -208,10 +208,10 @@ void m61_free(void* ptr, const char* file, int line) {
     const char* errmsg = "";
 
     // Check if ptr is in heap
-    if ((uintptr_t) &default_buffer.buffer[32] <= (uintptr_t) ptr && (uintptr_t) ptr <= (uintptr_t) &default_buffer.buffer[8<<20]) {
+    if ((uintptr_t) &default_buffer.buffer[startingMetadataAlottment] <= (uintptr_t) ptr && (uintptr_t) ptr <= (uintptr_t) &default_buffer.buffer[8<<20]) {
         if ((uintptr_t) ptr % alignof(std::max_align_t) == 0) {
             // Acquire internal metadata
-            startingMetadata* metadataPtr = (startingMetadata*) ((uintptr_t) ptr - 32);
+            startingMetadata* metadataPtr = (startingMetadata*) ((uintptr_t) ptr - startingMetadataAlottment);
             endingMetadata* endingPtr = (endingMetadata*) ((uintptr_t) ptr + metadataPtr->size + metadataPtr->alignmentAdjustment );
 
             if (metadataPtr->allocationKey == allocationChar) {
@@ -266,7 +266,7 @@ void m61_free(void* ptr, const char* file, int line) {
                         nextRegionNeverAllocated = true;
                         
                         int i = 0;
-                        while (i < 32) {
+                        while (i < startingMetadataAlottment) {
                             if (((deadMetadata*) nextBlockMetadata)->metadata[i] != neverAllocatedChar) {
                                 nextRegionNeverAllocated = false;
                                 break;
@@ -301,34 +301,35 @@ void m61_free(void* ptr, const char* file, int line) {
                     if (!contiguousFound) {
                         freeRegions[(uintptr_t) ptr - startingMetadataAlottment] = totalMetadataAlottment + sz + alignmentAdjustment;
                     }
-
                     activePointers.erase((uintptr_t) ptr);
-                
-                }  
+                    
+                    return;
+                } 
+            // Didn't have starting metadata allocation key 
             } else {
                 errmsg = "not allocated";
             }
+        // Alignment was off
         } else {
             errmsg = "not allocated";
         }
+    // Wasn't even in heap
     } else {
         errmsg = "not in heap";
     }
     
-    if (strcmp(errmsg, "") != 0) {
-        fprintf(stderr, "MEMORY BUG: %s:%u: invalid free of pointer %p, %s\n", file, line, ptr, errmsg);
-    }
+    fprintf(stderr, "MEMORY BUG: %s:%u: invalid free of pointer %p, %s\n", file, line, ptr, errmsg);
 
     if (strcmp(errmsg, "not allocated") == 0) {
             for (auto activePtr : activePointers) {
-                startingMetadata* activePtrMetadata = (startingMetadata*) ((uintptr_t) activePtr - 32);
+                startingMetadata* activePtrMetadata = (startingMetadata*) ((uintptr_t) activePtr - startingMetadataAlottment);
                 if ((uintptr_t) activePtr < (uintptr_t) ptr && (uintptr_t) ptr < (uintptr_t) activePtr + activePtrMetadata->size - 1) {
                     fprintf(stderr, "%s:%u: %p is %li bytes inside a %zu byte region allocated here\n", activePtrMetadata->file, activePtrMetadata->line, ptr, (char*) ptr - (char*) activePtr, activePtrMetadata->size);
                 }
             }
         }
 
-    return;
+    abort();
 }
 
 
@@ -369,7 +370,6 @@ m61_statistics m61_get_statistics() {
     stats.fail_size = fail_size;
     stats.heap_min = heap_min;
     stats.heap_max = heap_max;
-    //memset(&stats, 0, sizeof(m61_statistics));
     return stats;
 }
 
