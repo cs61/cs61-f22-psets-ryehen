@@ -12,3 +12,4 @@ Grading notes (if any)
 
 Extra credit attempted (if any)
 -------------------------------
+Added an additional test that checks for boundary write errors that occur past, but not ON the boundary.
