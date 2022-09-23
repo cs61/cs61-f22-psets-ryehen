@@ -37,18 +37,18 @@ struct endingMetadata {
     size_t totalSize;
 };
 
-// Case in which a region was never allocated
-// Allows us to check if entire region where metadata should be, lacks it
-struct deadMetadata {
-    char metadata[32];
-};
-
 // Constants for greater readability
 const int startingMetadataAlottment = 32;
 const int endingMetadataAlottment = 16;
 const int totalMetadataAlottment = startingMetadataAlottment + endingMetadataAlottment;
 const char allocationChar = '|';
 const char neverAllocatedChar = 'X';
+
+// Case in which a region was never allocated
+// Allows us to check if entire region where metadata should be, lacks it
+struct deadMetadata {
+    char metadata[startingMetadataAlottment];
+};
 
 // Map from ptr to total free region size
 std::map<uintptr_t, size_t> freeRegions;
