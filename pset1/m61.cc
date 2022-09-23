@@ -16,32 +16,44 @@
 const int MaxAlignment = alignof(std::max_align_t);
 
 // Stores info regarding each block of memory
-struct startingMetadata {               // Distances from payload pointer start
-    const char* file;                   // -32
-    size_t size;                        // -24
-    int line;                           // -16 
-    bool freed;                         // -12
-    char allocationKey;                 // -11
+// 32 bytes large, so its prepending will always preserve alignment
+struct startingMetadata {
+    const char* file;                   // file that called for allocation
+    size_t size;                        // memory size requested by user
+    int alignmentAdjustment;            // adjustment needed to preserve alignment of subsequent block
+    int line;                           // line # in file that called for allocation
+    bool freed;                         // Bool indicating whether block has been freed
+    char allocationKey;                 // Char denoting it's an allocated region
 };
 
-// Deliberately of size 8
+// Deliberately of size 16
+// May seem redundant, but would make coalescing adjacent blocks of memory easier
+// Simply check if prior region has endingMetadata.
+// If so, jump back "totalSize - sizeof(endingMetadata)" to check startingMetadata for freed information
+// If freed, coalesce
+// O(1) time
 struct endingMetadata {
     size_t size;
-    char boundaryKey[4];
+    size_t totalSize;
 };
 
 // Case in which a region was never allocated
+// Allows us to check if entire region where metadata should be, lacks it
 struct deadMetadata {
     char metadata[32];
 };
 
+// Constants for greater readability
 const int startingMetadataAlottment = 32;
-const int endingMetadataAlottment = 8;
+const int endingMetadataAlottment = 16;
 const int totalMetadataAlottment = startingMetadataAlottment + endingMetadataAlottment;
-const char allocationKey = '|';
+const char allocationChar = '|';
+const char neverAllocatedChar = 'X';
 
-// Map from ptr to region size
+// Map from ptr to total free region size
 std::map<uintptr_t, size_t> freeRegions;
+
+// Set of active pointers
 std::unordered_set<uintptr_t> activePointers;
 
 const int MaxAlignment = alignof(std::max_align_t);
