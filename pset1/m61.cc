@@ -16,33 +16,55 @@
 const int MaxAlignment = alignof(std::max_align_t);
 
 // Stores info regarding each block of memory
-struct startingMetadata {               // Distances from payload pointer start
-    const char* file;                   // -32
-    size_t size;                        // -24
-    int line;                           // -16 
-    bool freed;                         // -12
-    char allocationKey;                 // -11
+// 32 bytes large, so its prepending will always preserve alignment
+struct startingMetadata {
+    const char* file;                   // file that called for allocation
+    size_t size;                        // memory size requested by user
+    int alignmentAdjustment;            // adjustment needed to preserve alignment of subsequent block
+    int line;                           // line # in file that called for allocation
+    bool freed;                         // Bool indicating whether block has been freed
+    char allocationKey;                 // Char denoting it's an allocated region
 };
 
-// Deliberately of size 8
+// Deliberately of size 16
+// May seem redundant, but would make coalescing adjacent blocks of memory easier
+// Simply check if prior region has endingMetadata.
+// If so, jump back "totalSize - sizeof(endingMetadata)" to check startingMetadata for freed information
+// If freed, coalesce
+// O(1) time
 struct endingMetadata {
     size_t size;
-    char boundaryKey[4];
+    size_t totalSize;
 };
 
 // Case in which a region was never allocated
+// Allows us to check if entire region where metadata should be, lacks it
 struct deadMetadata {
     char metadata[32];
 };
 
+// Constants for greater readability
 const int startingMetadataAlottment = 32;
-const int endingMetadataAlottment = 8;
+const int endingMetadataAlottment = 16;
 const int totalMetadataAlottment = startingMetadataAlottment + endingMetadataAlottment;
-const char allocationKey = '|';
+const char allocationChar = '|';
+const char neverAllocatedChar = 'X';
 
-// Map from ptr to region size
+// Map from ptr to total free region size
 std::map<uintptr_t, size_t> freeRegions;
+
+// Set of active pointers
 std::unordered_set<uintptr_t> activePointers;
+
+// Global stats
+unsigned long long nactive = 0;           // number of active allocations [#malloc - #free]
+unsigned long long active_size = 0;       // number of bytes in active allocations
+unsigned long long ntotal = 0;            // number of allocations, total
+unsigned long long total_size = 0;        // number of bytes in allocations, total
+unsigned long long nfail = 0;             // number of failed allocation attempts
+unsigned long long fail_size = 0;         // number of bytes in failed allocation attempts
+uintptr_t heap_min;                       // smallest address in any region ever allocated
+uintptr_t heap_max;                       // largest address in any region ever allocated
 
 struct m61_memory_buffer {
     char* buffer;
@@ -70,22 +92,15 @@ m61_memory_buffer::~m61_memory_buffer() {
     munmap(this->buffer, this->size);
 }
 
-unsigned long long nactive = 0;           // number of active allocations [#malloc - #free]
-unsigned long long active_size = 0;       // number of bytes in active allocations
-unsigned long long ntotal = 0;            // number of allocations, total
-unsigned long long total_size = 0;        // number of bytes in allocations, total
-unsigned long long nfail = 0;             // number of failed allocation attempts
-unsigned long long fail_size = 0;         // number of bytes in failed allocation attempts
-uintptr_t heap_min;                       // smallest address in any region ever allocated
-uintptr_t heap_max;                       // largest address in any region ever allocated
-
 /// m61_malloc(sz, file, line)
 ///    Returns a pointer to `sz` bytes of freshly-allocated dynamic memory.
 ///    The memory is not initialized. If `sz == 0`, then m61_malloc may
 ///    return either `nullptr` or a pointer to a unique allocation.
 ///    The allocation request was made at source code location `file`:`line`.
 
-bool firstCall = true;
+// Allows us to only memset 'X' (to indicate never allocated)
+// On the very first call to malloc (saves on runtime)
+bool firstCallToMalloc = true;
 void* m61_malloc(size_t sz, const char* file, int line) {
     (void) file, (void) line;   // avoid uninitialized variable warnings
 
@@ -93,38 +108,32 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     if (nactive == 0) {
         default_buffer.pos = 0;
         
-        if (firstCall) {
+        if (firstCallToMalloc) {
             memset(&default_buffer.buffer[0], 'X', default_buffer.size);
-            firstCall = false;
+            firstCallToMalloc = false;
         }
 
         freeRegions.clear();
         activePointers.clear();
         freeRegions[(uintptr_t) &default_buffer.buffer[0]] = 8 << 20;
     }
-    size_t currentPos = default_buffer.pos;
 
     // Calculate alignment adjustment required
-    int alignmentRemainder = (sz + endingMetadataAlottment) % MaxAlignment;
+    int alignmentRemainder = sz % MaxAlignment;
     int alignmentAdjustment = (alignmentRemainder == 0) ? 0 : MaxAlignment - alignmentRemainder;
-    
-    // If integer overflow is occuring, return nullptr
-    if (currentPos + sz < sz) {
-        nfail++;
-        fail_size += sz;
-        return nullptr;
-    }
 
     // Allocate to first sufficient free region
     bool sufficientBlockFound = false;
     if (freeRegions.size() > 0) {
         for (auto& [regionPtr, regionSize] : freeRegions) {
-            if (regionSize >= sz + totalMetadataAlottment && sz + totalMetadataAlottment > sz) {
+            if (regionSize >= sz + totalMetadataAlottment + alignmentAdjustment && sz + totalMetadataAlottment + alignmentAdjustment > sz) {
+                // Store pointer address
                 ptr = (void*) regionPtr;
                 sufficientBlockFound = true;
                 
-                int newRegionSize = regionSize - sz - alignmentAdjustment - totalMetadataAlottment;
+                // Update metadata
                 activePointers.insert((uintptr_t) regionPtr + startingMetadataAlottment);
+                int newRegionSize = regionSize - sz - alignmentAdjustment - totalMetadataAlottment;
                 if ( newRegionSize > 0 ) {
                     freeRegions[((uintptr_t) regionPtr + sz + alignmentAdjustment + totalMetadataAlottment)] = newRegionSize;
                 }
@@ -134,6 +143,8 @@ void* m61_malloc(size_t sz, const char* file, int line) {
         }
     }
     
+    // If no free region is large enough / available,
+    // Update metadata and return nullptr
     if (!sufficientBlockFound) {
         nfail++;
         fail_size += sz;
@@ -142,19 +153,31 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     
     // Store ptr metadata internally
     startingMetadata* startingMetadataPtr = (startingMetadata*) ptr;
-    *startingMetadataPtr = (startingMetadata) {file, sz, line, false, '|'};
-    
+    *startingMetadataPtr = (startingMetadata) {file, sz, alignmentAdjustment, line, false, allocationChar};
 
-    endingMetadata* endingMetadataPtr = (endingMetadata*) ((uintptr_t) ptr + sz + startingMetadataAlottment);
-    *endingMetadataPtr = (endingMetadata) {sz, {'|', '|', '|', '|'}};
+    endingMetadata* endingMetadataPtr = (endingMetadata*) ((uintptr_t) ptr + startingMetadataAlottment + sz + alignmentAdjustment);
+    *endingMetadataPtr = (endingMetadata) {sz, sz + alignmentAdjustment + totalMetadataAlottment};
+
+    // If there was an alignment adjustment after main block, 
+    // Fill interceding space that precedes ending metadata with allocationChars
+    if (alignmentAdjustment > 0) {
+        char* bufferSpace = (char*) ((uintptr_t) ptr + startingMetadataAlottment + sz);
+
+        int i = 0;
+        while (i < alignmentAdjustment) {
+            *bufferSpace = allocationChar;
+            bufferSpace += 1;
+            i++;
+        }
+    }
 
     // Update max / min heap
     if (!heap_min || (uintptr_t) ptr < heap_min) {
         heap_min = (uintptr_t) ptr;
     }
 
-    if (!heap_max || (uintptr_t) ptr + sz + startingMetadataAlottment - 1 > heap_max) {
-        heap_max = (uintptr_t) ptr + sz + startingMetadataAlottment - 1;
+    if (!heap_max || (uintptr_t) ptr + startingMetadataAlottment + sz - 1 > heap_max) {
+        heap_max = (uintptr_t) ptr + startingMetadataAlottment + sz - 1;
     }
     
     ntotal++;
@@ -163,7 +186,7 @@ void* m61_malloc(size_t sz, const char* file, int line) {
     total_size += sz;
 
     // Return pointer to payload, not to start of metadata
-    ptr = (void*) ((uintptr_t) ptr + 32);
+    ptr = (void*) ((uintptr_t) ptr + startingMetadataAlottment);
     return ptr;
 }
 
@@ -182,85 +205,109 @@ void m61_free(void* ptr, const char* file, int line) {
         return;
     }
 
-    // Acquire internal metadata
     const char* errmsg = "";
 
     // Check if ptr is in heap
     if ((uintptr_t) &default_buffer.buffer[32] <= (uintptr_t) ptr && (uintptr_t) ptr <= (uintptr_t) &default_buffer.buffer[8<<20]) {
-        startingMetadata* metadataPtr = (startingMetadata*) ((uintptr_t) ptr - 32);
-        endingMetadata* endingPtr = (endingMetadata*) ((uintptr_t) ptr + metadataPtr->size);
+        if ((uintptr_t) ptr % alignof(std::max_align_t) == 0) {
+            // Acquire internal metadata
+            startingMetadata* metadataPtr = (startingMetadata*) ((uintptr_t) ptr - 32);
+            endingMetadata* endingPtr = (endingMetadata*) ((uintptr_t) ptr + metadataPtr->size + metadataPtr->alignmentAdjustment );
 
-        if (metadataPtr->allocationKey == '|') {
-            // Ensure size stored in bookending metadata matches that which is stored in
-            // Starting metdata
-            if (endingPtr->size != metadataPtr->size) {
-                fprintf(stderr, "MEMORY BUG: %s:%u: detected wild write during free of pointer %p\n", file, line, ptr);
-                return;
-            } 
-
-            // Detect double free
-            if (metadataPtr->freed == true) {
-                errmsg = "double free";
-            // Detect diabolic wild write
-            } else if (activePointers.count((uintptr_t) ptr) == 0) {
-                errmsg = "not allocated";
-            } else {
-                --nactive;
-                active_size -= metadataPtr->size;
-                metadataPtr->freed = true;
-            
-                // Update info on contiguous regions w space for allocation
-                bool contiguousFound = false;
-                size_t sz = metadataPtr->size;
-                int alignmentRemainder = (sz + endingMetadataAlottment) % MaxAlignment;
-                int alignmentAdjustment = (alignmentRemainder == 0) ? 0 : MaxAlignment - alignmentRemainder;
-                
-                // Get rid of previous memory
-                memset(ptr, '0', sz);
-                
-                // Combine adjacent free blocks
-                startingMetadata* nextBlockMetadata = (startingMetadata*) ((uintptr_t) ptr + sz + endingMetadataAlottment + alignmentAdjustment);
-                
-                bool nextRegionNeverAllocated = false;
-                if ((nextBlockMetadata->allocationKey != '|')) {
-                    nextRegionNeverAllocated = true;
+            if (metadataPtr->allocationKey == allocationChar) {
+                // Determine if alignment adjustment buffer space was overwritten
+                bool bufferSpaceOverwritten = false;
+                if (metadataPtr->alignmentAdjustment != 0) {
                     int i = 0;
-                    while (i < 32) {
-                        if (((deadMetadata*) nextBlockMetadata)->metadata[i] != 'X') {
-                            nextRegionNeverAllocated = false;
+                    while (i < metadataPtr->alignmentAdjustment) {
+                        if (*((char*) endingPtr - i - 1) != allocationChar) {
+                            bufferSpaceOverwritten = true;
                             break;
                         }
                         i++;
                     }
                 }
 
-                if ((nextBlockMetadata->allocationKey == '|' && nextBlockMetadata->freed == true) || nextRegionNeverAllocated) {
-                    freeRegions[(uintptr_t) ptr - startingMetadataAlottment] = freeRegions[(uintptr_t) nextBlockMetadata] + totalMetadataAlottment + sz + alignmentAdjustment;
-                    freeRegions.erase((uintptr_t) nextBlockMetadata);
-                    contiguousFound = true;
-                }
+                // Detect wild write
+                if (endingPtr->size != metadataPtr->size || bufferSpaceOverwritten) {
+                    fprintf(stderr, "MEMORY BUG: %s:%u: detected wild write during free of pointer %p\n", file, line, ptr);
+                    abort();
+                } 
+
+                // Detect double free
+                if (metadataPtr->freed == true) {
+                    errmsg = "double free";
                 
-                for (auto& [regionPtr, size] : freeRegions) {
-                    if (((uintptr_t) regionPtr + size) == (uintptr_t) ptr - startingMetadataAlottment) {
-                        if (contiguousFound) {
-                            freeRegions[regionPtr] += freeRegions[(uintptr_t) ptr - startingMetadataAlottment];
-                            freeRegions.erase((uintptr_t) ptr - startingMetadataAlottment);
-                        } else {
-                            freeRegions[regionPtr] += (totalMetadataAlottment + sz + alignmentAdjustment);  
+                // Detect diabolic wild write
+                } else if (activePointers.count((uintptr_t) ptr) == 0) {
+                    errmsg = "not allocated";
+                } else {
+                    --nactive;
+                    active_size -= metadataPtr->size;
+                    metadataPtr->freed = true;
+                
+                    // Update info on contiguous regions w space for allocation
+                    bool contiguousFound = false;
+                    size_t sz = metadataPtr->size;
+                    int alignmentRemainder = sz % MaxAlignment;
+                    int alignmentAdjustment = (alignmentRemainder == 0) ? 0 : MaxAlignment - alignmentRemainder;
+                    
+                    // Get rid of previous memory
+                    memset(ptr, '0', sz);
+                    
+                    // Combine adjacent free blocks
+                    startingMetadata* nextBlockMetadata = (startingMetadata*) ((uintptr_t) ptr + sz + endingMetadataAlottment + alignmentAdjustment);
+                    
+                    // Determine if subsequent region was ever allocated
+                    // Technically redundant, since I use "freeRegions.count()" below, but it's indicative of how I would check
+                    // If I had had the time to fully remove the freeRegions external metadata
+                    bool nextRegionNeverAllocated = false;
+                    if ((nextBlockMetadata->allocationKey != allocationChar)) {
+                        nextRegionNeverAllocated = true;
+                        
+                        int i = 0;
+                        while (i < 32) {
+                            if (((deadMetadata*) nextBlockMetadata)->metadata[i] != neverAllocatedChar) {
+                                nextRegionNeverAllocated = false;
+                                break;
+                            }
+                            i++;
                         }
-                        contiguousFound = true;
-                        break;
                     }
-                }
 
-                if (!contiguousFound) {
-                    freeRegions[(uintptr_t) ptr - startingMetadataAlottment] = totalMetadataAlottment + sz + alignmentAdjustment;
-                }
+                    // Coalesce with subsequent region as needed
+                    if (nextRegionNeverAllocated || freeRegions.count((uintptr_t) nextBlockMetadata) > 0) {
+                        freeRegions[(uintptr_t) ptr - startingMetadataAlottment] = freeRegions[(uintptr_t) nextBlockMetadata] + totalMetadataAlottment + sz + alignmentAdjustment;
+                        freeRegions.erase((uintptr_t) nextBlockMetadata);
+                        contiguousFound = true;
+                    }
+                    
+                    // Coalesce with prior region as needed
+                    // Here is where I would have made use of the O(1) algorithm I described above the
+                    // "endingMetadata" global struct
+                    for (auto& [regionPtr, size] : freeRegions) {
+                        if (((uintptr_t) regionPtr + size) == (uintptr_t) ptr - startingMetadataAlottment) {
+                            if (contiguousFound) {
+                                freeRegions[regionPtr] += freeRegions[(uintptr_t) ptr - startingMetadataAlottment];
+                                freeRegions.erase((uintptr_t) ptr - startingMetadataAlottment);
+                            } else {
+                                freeRegions[regionPtr] += (totalMetadataAlottment + sz + alignmentAdjustment);  
+                            }
+                            contiguousFound = true;
+                            break;
+                        }
+                    }
 
-                default_buffer.pos = (uintptr_t) ptr - startingMetadataAlottment - (uintptr_t) &default_buffer.buffer[0];
-                activePointers.erase((uintptr_t) ptr);
-            
-            }  
+                    if (!contiguousFound) {
+                        freeRegions[(uintptr_t) ptr - startingMetadataAlottment] = totalMetadataAlottment + sz + alignmentAdjustment;
+                    }
+
+                    activePointers.erase((uintptr_t) ptr);
+                
+                }  
+            } else {
+                errmsg = "not allocated";
+            }
         } else {
             errmsg = "not allocated";
         }
@@ -345,7 +392,7 @@ void m61_print_statistics() {
 
 void m61_print_leak_report() {
     for (auto activePtr : activePointers) {
-        startingMetadata* activePtrMetadata = (startingMetadata*) ((uintptr_t) activePtr - 32);
+        startingMetadata* activePtrMetadata = (startingMetadata*) ((uintptr_t) activePtr - startingMetadataAlottment);
         fprintf(stdout, "LEAK CHECK: %s:%u: allocated object %p with size %zu\n", activePtrMetadata->file, activePtrMetadata->line, (void*) activePtr, activePtrMetadata->size);
     }
 }
