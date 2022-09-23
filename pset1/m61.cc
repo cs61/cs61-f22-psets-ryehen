@@ -16,25 +16,33 @@
 const int MaxAlignment = alignof(std::max_align_t);
 
 // Stores info regarding each block of memory
-struct metadata {               // Distances from payload pointer start
-    const char* file;           // -32
-    size_t size;                // -24
-    int line;                   // -16 
-    bool freed;                 // -12
-    char allocationKey;         // -11
+struct startingMetadata {               // Distances from payload pointer start
+    const char* file;                   // -32
+    size_t size;                        // -24
+    int line;                           // -16 
+    bool freed;                         // -12
+    char allocationKey;                 // -11
 };
 
-const int metadataAlottment = 32;
+// Deliberately of size 8
+struct endingMetadata {
+    size_t size;
+    char boundaryKey[4];
+};
+
+// Case in which a region was never allocated
+struct deadMetadata {
+    char metadata[32];
+};
+
+const int startingMetadataAlottment = 32;
+const int endingMetadataAlottment = 8;
+const int totalMetadataAlottment = startingMetadataAlottment + endingMetadataAlottment;
 const char allocationKey = '|';
 
-// List of pointers that have been freed
-// Reduces time
-std::vector<void*> freedPointers;
-
 // Map from ptr to region size
-std::map<void*, size_t> freeRegions;
-// Maps ptr address to metadata
-std::map<void*, metadata> metadataMap;
+std::map<uintptr_t, size_t> freeRegions;
+std::unordered_set<uintptr_t> activePointers;
 
 const int MaxAlignment = alignof(std::max_align_t);
 
