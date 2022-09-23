@@ -2,7 +2,6 @@
 #include <cstdio>
 #include <cassert>
 #include <cstring>
-#include "hexdump.hh"
 // Check detection of boundary write errors before allocation.
 
 int main() {
@@ -11,7 +10,6 @@ int main() {
     for (int i = 0; i <= 10 /* Whoops! Should be < */; ++i) {
         ptr[i] = i;
     }
-    //hexdump_object(ptr[10]);
     m61_free(ptr);
     m61_print_statistics();
 }
