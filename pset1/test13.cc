@@ -3,6 +3,7 @@
 #include <cassert>
 #include <cstring>
 #include <random>
+#include <iostream>
 // Check that m61_calloc works when called ~500 times.
 
 int main() {
