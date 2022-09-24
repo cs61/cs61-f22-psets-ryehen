@@ -14,7 +14,7 @@ int main() {
 
     // initialize random seed
     srand (time(NULL));
-    // Get new, random size between 1 and 10 greater than the length of the old string
+    // Get new, random size between 1 and stringLength + 10
     int newSize = rand() % (strlen(oldString) + 11) + 1;
     
     // Realloc
@@ -32,5 +32,5 @@ int main() {
 }
 
 
-//! alloc count: active          1   total          2   fail          0
+//! alloc count: active          1   total        ???   fail          0
 //! alloc size:  active        ???   total        ???   fail          0

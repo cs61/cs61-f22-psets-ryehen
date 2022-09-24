@@ -385,30 +385,76 @@ void* m61_realloc(void* ptr, size_t sz, const char* file, int line) {
         return nullptr;
     }
 
-    // Call malloc to create memory region with newly requested size
-    void* newPtr = m61_malloc(sz, file, line);
-
-    if (newPtr == nullptr) {
-        nfail++;
-        fail_size += sz;
-        return nullptr;
-    }
-    
-    // Copy data from old ptr to new ptr
-    size_t i = 0;
+    // Check if region can be simply extended
     startingMetadata* oldPtrMetadata = (startingMetadata*) ((uintptr_t) ptr - startingMetadataAlottment);
-    while (i < oldPtrMetadata->size && i < sz) {
-        char transferByte = *((char*) ((uintptr_t) ptr + i));
-        char* byteDestinationAddress = (char*) ((uintptr_t) newPtr + i);
-        
-        memset(byteDestinationAddress, transferByte, 1);
-        i++;
-    }
+    uintptr_t adjacentRegionStart = (intptr_t) ptr + oldPtrMetadata->size + oldPtrMetadata->alignmentAdjustment + sizeof(endingMetadata);
 
-    // Free previously allocated block
-    m61_free(ptr);
+    // Calculate new alignment adjustment requirements
+    int alignmentRemainder = sz % MaxAlignment;
+    int alignmentAdjustment = (alignmentRemainder == 0) ? 0 : MaxAlignment - alignmentRemainder;
     
-    return newPtr;
+    int sizeDifference = sz - oldPtrMetadata->size;
+    if (sizeDifference < 0) {
+        if (alignmentAdjustment > 0) {
+                memset((char*) ptr + sz, '|', alignmentAdjustment);
+        }
+
+        // Update freeRegions
+        if (freeRegions.count(adjacentRegionStart) == 1) {
+            freeRegions[(uintptr_t) ptr + sz + alignmentAdjustment + sizeof(endingMetadata)] = freeRegions[adjacentRegionStart] + abs(sizeDifference);
+            freeRegions.erase(adjacentRegionStart);
+        } else {
+            freeRegions[(uintptr_t) ptr + sz + alignmentAdjustment + sizeof(endingMetadata)] = abs(sizeDifference);
+        }
+
+    } else if (((oldPtrMetadata->alignmentAdjustment) - sizeDifference - alignmentAdjustment >= 0) || 
+                (freeRegions.count(adjacentRegionStart) == 1 && freeRegions[adjacentRegionStart] > (size_t) abs(sizeDifference) + alignmentAdjustment - (oldPtrMetadata->alignmentAdjustment))) {
+        
+        // Perform alignment adjustment and region extension
+        memset((char*) ptr + oldPtrMetadata->size, '0', sizeDifference);
+        memset((char*) ptr + sz, '|', alignmentAdjustment);
+
+        // Update freeRegions
+        if (freeRegions.count(adjacentRegionStart) == 1) {
+            freeRegions[(uintptr_t) ptr + sz + alignmentAdjustment + sizeof(endingMetadata)] = freeRegions[adjacentRegionStart] - abs(sizeDifference);
+            freeRegions.erase(adjacentRegionStart);
+        }
+    } else {
+        // Call malloc to create memory region with newly requested size
+        void* newPtr = m61_malloc(sz, file, line);
+
+        if (newPtr == nullptr) {
+            nfail++;
+            fail_size += sz;
+            return nullptr;
+        }
+    
+        // Copy data from old ptr to new ptr
+        size_t i = 0;
+        while (i < oldPtrMetadata->size && i < sz) {
+            char transferByte = *((char*) ((uintptr_t) ptr + i));
+            char* byteDestinationAddress = (char*) ((uintptr_t) newPtr + i);
+            
+            memset(byteDestinationAddress, transferByte, 1);
+            i++;
+        }
+
+        // Free previously allocated block
+        m61_free(ptr);
+        return newPtr;
+    }
+    // This area is only reached if region was extended or truncated
+    // Update metadata
+    oldPtrMetadata->size = sz;
+    oldPtrMetadata->alignmentAdjustment = alignmentAdjustment;
+    oldPtrMetadata->file = file;
+    oldPtrMetadata->line = line;
+
+    *((endingMetadata*) ((char*) ptr + sz + alignmentAdjustment)) = {sz, sz + alignmentAdjustment + sizeof(endingMetadata)};
+    
+    active_size += sizeDifference;
+    total_size += sizeDifference;
+    return ptr;    
 }
 
 
