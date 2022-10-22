@@ -62,13 +62,20 @@ void kernel_start(const char* command) {
 
     // (re-)initialize kernel page table
     for (uintptr_t addr = 0; addr < MEMSIZE_PHYSICAL; addr += PAGESIZE) {
-        int perm = PTE_P | PTE_W | PTE_U;
+        int kernel_perm = PTE_P | PTE_W;
+        int general_perm = PTE_P | PTE_W | PTE_U;
         if (addr == 0) {
             // nullptr is inaccessible even to the kernel
-            perm = 0;
+            kernel_perm = 0;
+            general_perm = 0;
         }
         // install identity mapping
-        int r = vmiter(kernel_pagetable, addr).try_map(addr, perm);
+        int r;
+        if (addr < PROC_START_ADDR && addr != CONSOLE_ADDR) {
+            r = vmiter(kernel_pagetable, addr).try_map(addr, kernel_perm);
+        } else {
+            r = vmiter(kernel_pagetable, addr).try_map(addr, general_perm);
+        }
         assert(r == 0); // mappings during kernel_start MUST NOT fail
                         // (Note that later mappings might fail!!)
     }
@@ -152,9 +159,6 @@ void kfree(void* kptr) {
 void process_setup(pid_t pid, const char* program_name) {
     init_process(&ptable[pid], 0);
 
-    // initialize process page table
-    ptable[pid].pagetable = kernel_pagetable;
-
     // obtain reference to program image
     // (The program image models the process executable.)
     program_image pgm(program_name);
@@ -192,6 +196,20 @@ void process_setup(pid_t pid, const char* program_name) {
 
     // mark process as runnable
     ptable[pid].state = P_RUNNABLE;
+
+    // initialize process page table
+    ptable[pid].pagetable = kalloc_pagetable();
+
+    while (true) {}
+    
+    // Copy mapping from kernel but isolate processes
+    int r;
+    for (uintptr_t addr = 0; addr < MEMSIZE_PHYSICAL; addr += PAGESIZE) {
+        if (((PROC_START_ADDR + PROC_SIZE * (pid - 1)) <= addr && addr < (PROC_START_ADDR + PROC_SIZE * (pid))) || addr == CONSOLE_ADDR) {
+            r = vmiter(ptable[pid].pagetable, addr).try_map(addr, PTE_P | PTE_W | PTE_U);
+            assert(r == 0);
+        }
+    }
 }
 
 
@@ -342,10 +360,14 @@ uintptr_t syscall(regstate* regs) {
 //    in `u-lib.hh` (but in the handout code, it does not).
 
 int syscall_page_alloc(uintptr_t addr) {
-    assert(physpages[addr / PAGESIZE].refcount == 0);
-    ++physpages[addr / PAGESIZE].refcount;
-    memset((void*) addr, 0, PAGESIZE);
-    return 0;
+    if (addr >= PROC_START_ADDR && addr < MEMSIZE_VIRTUAL && addr % PAGESIZE == 0) {
+        assert(physpages[addr / PAGESIZE].refcount == 0);
+        ++physpages[addr / PAGESIZE].refcount;
+        memset((void*) addr, 0, PAGESIZE);
+        return 0;
+    } else {
+        return -1;
+    }
 }
 
 
