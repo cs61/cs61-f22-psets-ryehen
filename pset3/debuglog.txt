@@ -1,0 +1,353 @@
+* Run `gdb -ix weensyos.gdb` to connect gdb to qemu.
+CPU Reset (CPU 0)
+EAX=00000000 EBX=00000000 ECX=00000000 EDX=00000000
+ESI=00000000 EDI=00000000 EBP=00000000 ESP=00000000
+EIP=00000000 EFL=00000000 [-------] CPL=0 II=0 A20=0 SMM=0 HLT=0
+ES =0000 00000000 00000000 00000000
+CS =0000 00000000 00000000 00000000
+SS =0000 00000000 00000000 00000000
+DS =0000 00000000 00000000 00000000
+FS =0000 00000000 00000000 00000000
+GS =0000 00000000 00000000 00000000
+LDT=0000 00000000 00000000 00000000
+TR =0000 00000000 00000000 00000000
+GDT=     00000000 00000000
+IDT=     00000000 00000000
+CR0=00000000 CR2=00000000 CR3=00000000 CR4=00000000
+DR0=0000000000000000 DR1=0000000000000000 DR2=0000000000000000 DR3=0000000000000000 
+DR6=0000000000000000 DR7=0000000000000000
+CCS=00000000 CCD=00000000 CCO=DYNAMIC
+EFER=0000000000000000
+FCW=0000 FSW=0000 [ST=0] FTW=ff MXCSR=00000000
+FPR0=0000000000000000 0000 FPR1=0000000000000000 0000
+FPR2=0000000000000000 0000 FPR3=0000000000000000 0000
+FPR4=0000000000000000 0000 FPR5=0000000000000000 0000
+FPR6=0000000000000000 0000 FPR7=0000000000000000 0000
+XMM00=0000000000000000 0000000000000000 XMM01=0000000000000000 0000000000000000
+XMM02=0000000000000000 0000000000000000 XMM03=0000000000000000 0000000000000000
+XMM04=0000000000000000 0000000000000000 XMM05=0000000000000000 0000000000000000
+XMM06=0000000000000000 0000000000000000 XMM07=0000000000000000 0000000000000000
+CPU Reset (CPU 0)
+EAX=00000000 EBX=00000000 ECX=00000000 EDX=00060fb1
+ESI=00000000 EDI=00000000 EBP=00000000 ESP=00000000
+EIP=0000fff0 EFL=00000002 [-------] CPL=0 II=0 A20=1 SMM=0 HLT=0
+ES =0000 00000000 0000ffff 00009300
+CS =f000 ffff0000 0000ffff 00009b00
+SS =0000 00000000 0000ffff 00009300
+DS =0000 00000000 0000ffff 00009300
+FS =0000 00000000 0000ffff 00009300
+GS =0000 00000000 0000ffff 00009300
+LDT=0000 00000000 0000ffff 00008200
+TR =0000 00000000 0000ffff 00008b00
+GDT=     00000000 0000ffff
+IDT=     00000000 0000ffff
+CR0=60000010 CR2=00000000 CR3=00000000 CR4=00000000
+DR0=0000000000000000 DR1=0000000000000000 DR2=0000000000000000 DR3=0000000000000000 
+DR6=00000000ffff0ff0 DR7=0000000000000400
+CCS=00000000 CCD=00000000 CCO=DYNAMIC
+EFER=0000000000000000
+FCW=037f FSW=0000 [ST=0] FTW=00 MXCSR=00001f80
+FPR0=0000000000000000 0000 FPR1=0000000000000000 0000
+FPR2=0000000000000000 0000 FPR3=0000000000000000 0000
+FPR4=0000000000000000 0000 FPR5=0000000000000000 0000
+FPR6=0000000000000000 0000 FPR7=0000000000000000 0000
+XMM00=0000000000000000 0000000000000000 XMM01=0000000000000000 0000000000000000
+XMM02=0000000000000000 0000000000000000 XMM03=0000000000000000 0000000000000000
+XMM04=0000000000000000 0000000000000000 XMM05=0000000000000000 0000000000000000
+XMM06=0000000000000000 0000000000000000 XMM07=0000000000000000 0000000000000000
+Could not convert 0x263a from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x263b from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x2665 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x2666 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x2663 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x2660 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x2022 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x25d8 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x25cb from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x25d9 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x2642 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x2640 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x266a from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x266b from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x263c from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x25ba from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x25c4 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x2195 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x203c from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x00b6 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x00a7 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x25ac from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x21a8 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x2191 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x2193 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x2192 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x2190 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x221f from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x2194 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x25b2 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x25bc from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x80 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x81 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x82 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x83 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x84 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x85 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x86 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x87 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x88 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x89 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x8a from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x8b from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x8c from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x8d from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x8e from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x8f from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x90 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x91 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x92 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x93 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x94 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x95 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x96 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x97 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x98 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x99 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x9a from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x9b from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x9c from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x9d from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x9e from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0x9f from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xa0 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xa1 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xa2 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xa3 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xa4 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xa5 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xa6 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xa7 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xa8 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xa9 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xaa from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xab from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xac from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xad from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xae from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xaf from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xb0 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xb1 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xb2 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xb3 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xb4 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xb5 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xb6 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xb7 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xb8 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xb9 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xba from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xbb from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xbc from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xbd from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xbe from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xbf from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xc0 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xc1 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xc2 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xc3 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xc4 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xc5 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xc6 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xc7 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xc8 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xc9 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xca from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xcb from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xcc from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xcd from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xce from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xcf from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xd0 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xd1 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xd2 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xd3 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xd4 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xd5 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xd6 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xd7 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xd8 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xd9 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xda from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xdb from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xdc from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xdd from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xde from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xdf from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xe0 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xe1 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xe2 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xe3 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xe4 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xe5 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xe6 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xe7 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xe8 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xe9 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xea from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xeb from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xec from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xed from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xee from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xef from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xf0 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xf1 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xf2 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xf3 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xf4 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xf5 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xf6 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xf7 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xf8 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xf9 from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xfa from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xfb from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xfc from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xfd from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xfe from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert font glyph 0xff from CP437 to a multibyte character: Invalid or incomplete multibyte or wide character
+Could not convert 0x2302 from UCS-2 to a multibyte character: Invalid or incomplete multibyte or wide character
+SMM: enter
+EAX=00000001 EBX=00000000 ECX=00000010 EDX=b00f80a0
+ESI=000000f8 EDI=00000000 EBP=b00f0630 ESP=00006c5c
+EIP=000e9bb1 EFL=00000002 [-------] CPL=0 II=0 A20=1 SMM=0 HLT=0
+ES =0010 00000000 ffffffff 00cf9300 DPL=0 DS   [-WA]
+CS =0008 00000000 ffffffff 00cf9b00 DPL=0 CS32 [-RA]
+SS =0010 00000000 ffffffff 00cf9300 DPL=0 DS   [-WA]
+DS =0010 00000000 ffffffff 00cf9300 DPL=0 DS   [-WA]
+FS =0010 00000000 ffffffff 00cf9300 DPL=0 DS   [-WA]
+GS =0010 00000000 ffffffff 00cf9300 DPL=0 DS   [-WA]
+LDT=0000 00000000 0000ffff 00008200 DPL=0 LDT
+TR =0000 00000000 0000ffff 00008b00 DPL=0 TSS32-busy
+GDT=     000f6180 00000037
+IDT=     000f61be 00000000
+CR0=00000011 CR2=00000000 CR3=00000000 CR4=00000000
+DR0=0000000000000000 DR1=0000000000000000 DR2=0000000000000000 DR3=0000000000000000 
+DR6=00000000ffff0ff0 DR7=0000000000000400
+CCS=b00000a0 CCD=00000001 CCO=LOGICB
+EFER=0000000000000000
+SMM: after RSM
+EAX=00000001 EBX=00000000 ECX=00000010 EDX=b00f80a0
+ESI=000000f8 EDI=00000000 EBP=b00f0630 ESP=00006c5c
+EIP=000e9bb1 EFL=00000002 [-------] CPL=0 II=0 A20=1 SMM=0 HLT=0
+ES =0010 00000000 ffffffff 00c09300 DPL=0 DS   [-WA]
+CS =0008 00000000 ffffffff 00c09b00 DPL=0 CS32 [-RA]
+SS =0010 00000000 ffffffff 00c09300 DPL=0 DS   [-WA]
+DS =0010 00000000 ffffffff 00c09300 DPL=0 DS   [-WA]
+FS =0010 00000000 ffffffff 00c09300 DPL=0 DS   [-WA]
+GS =0010 00000000 ffffffff 00c09300 DPL=0 DS   [-WA]
+LDT=0000 00000000 0000ffff 00008200 DPL=0 LDT
+TR =0000 00000000 0000ffff 00008b00 DPL=0 TSS32-busy
+GDT=     000f6180 00000037
+IDT=     000f61be 00000000
+CR0=00000011 CR2=00000000 CR3=00000000 CR4=00000000
+DR0=0000000000000000 DR1=0000000000000000 DR2=0000000000000000 DR3=0000000000000000 
+DR6=00000000ffff0ff0 DR7=0000000000000400
+CCS=00000000 CCD=00000000 CCO=EFLAGS
+EFER=0000000000000000
+SMM: enter
+EAX=000000b5 EBX=000f7d2a ECX=00001234 EDX=00006cff
+ESI=00006cb8 EDI=07fbec71 EBP=00006c78 ESP=00006c78
+EIP=00007d29 EFL=00000006 [-----P-] CPL=0 II=0 A20=1 SMM=0 HLT=0
+ES =d980 000d9800 ffffffff 008f9300
+CS =f000 000f0000 ffffffff 008f9b00
+SS =0000 00000000 ffffffff 008f9300
+DS =0000 00000000 ffffffff 008f9300
+FS =0000 00000000 ffffffff 008f9300
+GS =0000 00000000 ffffffff 008f9300
+LDT=0000 00000000 0000ffff 00008200
+TR =0000 00000000 0000ffff 00008b00
+GDT=     00000000 00000000
+IDT=     00000000 000003ff
+CR0=00000010 CR2=00000000 CR3=00000000 CR4=00000000
+DR0=0000000000000000 DR1=0000000000000000 DR2=0000000000000000 DR3=0000000000000000 
+DR6=00000000ffff0ff0 DR7=0000000000000400
+CCS=00000004 CCD=00006c78 CCO=EFLAGS
+EFER=0000000000000000
+SMM: after RSM
+EAX=000000b5 EBX=000f7d2a ECX=00001234 EDX=00006cff
+ESI=00006cb8 EDI=07fbec71 EBP=00006c78 ESP=00006c78
+EIP=000f7d2a EFL=00000002 [-------] CPL=0 II=0 A20=1 SMM=0 HLT=0
+ES =0010 00000000 ffffffff 00c09300 DPL=0 DS   [-WA]
+CS =0008 00000000 ffffffff 00c09b00 DPL=0 CS32 [-RA]
+SS =0010 00000000 ffffffff 00c09300 DPL=0 DS   [-WA]
+DS =0010 00000000 ffffffff 00c09300 DPL=0 DS   [-WA]
+FS =0010 00000000 ffffffff 00c09300 DPL=0 DS   [-WA]
+GS =0010 00000000 ffffffff 00c09300 DPL=0 DS   [-WA]
+LDT=0000 00000000 0000ffff 00008200 DPL=0 LDT
+TR =0000 00000000 0000ffff 00008b00 DPL=0 TSS32-busy
+GDT=     000f6180 00000037
+IDT=     000f61be 00000000
+CR0=00000011 CR2=00000000 CR3=00000000 CR4=00000000
+DR0=0000000000000000 DR1=0000000000000000 DR2=0000000000000000 DR3=0000000000000000 
+DR6=00000000ffff0ff0 DR7=0000000000000400
+CCS=00000000 CCD=00000000 CCO=EFLAGS
+EFER=0000000000000000
+SMM: enter
+EAX=000000b5 EBX=00007d44 ECX=00005678 EDX=07fa9610
+ESI=000e8d00 EDI=07fbec71 EBP=00006c78 ESP=00006c78
+EIP=000f7d43 EFL=00000012 [----A--] CPL=0 II=0 A20=1 SMM=0 HLT=0
+ES =0010 00000000 ffffffff 00c09300 DPL=0 DS   [-WA]
+CS =0008 00000000 ffffffff 00c09b00 DPL=0 CS32 [-RA]
+SS =0010 00000000 ffffffff 00c09300 DPL=0 DS   [-WA]
+DS =0010 00000000 ffffffff 00c09300 DPL=0 DS   [-WA]
+FS =0010 00000000 ffffffff 00c09300 DPL=0 DS   [-WA]
+GS =0010 00000000 ffffffff 00c09300 DPL=0 DS   [-WA]
+LDT=0000 00000000 0000ffff 00008200 DPL=0 LDT
+TR =0000 00000000 0000ffff 00008b00 DPL=0 TSS32-busy
+GDT=     000f6180 00000037
+IDT=     000f61be 00000000
+CR0=00000011 CR2=00000000 CR3=00000000 CR4=00000000
+DR0=0000000000000000 DR1=0000000000000000 DR2=0000000000000000 DR3=0000000000000000 
+DR6=00000000ffff0ff0 DR7=0000000000000400
+CCS=00000010 CCD=00006c64 CCO=EFLAGS
+EFER=0000000000000000
+SMM: after RSM
+EAX=000000b5 EBX=00007d44 ECX=00005678 EDX=07fa9610
+ESI=000e8d00 EDI=07fbec71 EBP=00006c78 ESP=00006c78
+EIP=00007d44 EFL=00000006 [-----P-] CPL=0 II=0 A20=1 SMM=0 HLT=0
+ES =d980 000d9800 ffffffff 00809300
+CS =f000 000f0000 ffffffff 00809b00
+SS =0000 00000000 ffffffff 00809300
+DS =0000 00000000 ffffffff 00809300
+FS =0000 00000000 ffffffff 00809300
+GS =0000 00000000 ffffffff 00809300
+LDT=0000 00000000 0000ffff 00008200
+TR =0000 00000000 0000ffff 00008b00
+GDT=     00000000 00000000
+IDT=     00000000 000003ff
+CR0=00000010 CR2=00000000 CR3=00000000 CR4=00000000
+DR0=0000000000000000 DR1=0000000000000000 DR2=0000000000000000 DR3=0000000000000000 
+DR6=00000000ffff0ff0 DR7=0000000000000400
+CCS=00000004 CCD=00000001 CCO=EFLAGS
+EFER=0000000000000000
+check_exception old: 0xffffffff new 0xe
+     0: v=0e e=0000 i=0 cpl=0 IP=0008:000000000004141c pc=000000000004141c SP=0000:000000000007ff30 CR2=0000000000000000
+RAX=000000000007ff48 RBX=0000000000000000 RCX=000000000000001e RDX=0000000000000000
+RSI=0000000000000003 RDI=0000000000000000 RBP=000000000007ff38 RSP=000000000007ff30
+R8 =0000000000000000 R9 =000ffffffffff000 R10=0000000000000a69 R11=00000000000001f0
+R12=0000000000200000 R13=0000000000044af4 R14=0000000000000003 R15=0000000000000000
+RIP=000000000004141c RFL=00000006 [-----P-] CPL=0 II=0 A20=1 SMM=0 HLT=0
+ES =0000 0000000000000000 0000ffff 00009300 DPL=0 DS   [-WA]
+CS =0008 0000000000000000 00000000 00209a00 DPL=0 CS64 [-R-]
+SS =0000 0000000000000000 0000ffff 00009300 DPL=0 DS   [-WA]
+DS =0000 0000000000000000 0000ffff 00009300 DPL=0 DS   [-WA]
+FS =0010 0000000000000000 00000000 00009300 DPL=0 DS   [-WA]
+GS =0010 0000000000000000 00000000 00009300 DPL=0 DS   [-WA]
+LDT=0000 0000000000000000 0000ffff 00008200 DPL=0 LDT
+TR =0028 000000000005f020 00000067 00008900 DPL=0 TSS64-avl
+GDT=     000000000005f0a0 00000037
+IDT=     0000000000056030 00000fff
+CR0=80050033 CR2=0000000000000000 CR3=000000000005a000 CR4=00000030
+DR0=0000000000000000 DR1=0000000000000000 DR2=0000000000000000 DR3=0000000000000000 
+DR6=00000000ffff0ff0 DR7=0000000000000400
+CCS=0000000000000004 CCD=0000000000000000 CCO=EFLAGS
+EFER=0000000000000d01

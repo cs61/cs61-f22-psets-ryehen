@@ -62,20 +62,17 @@ void kernel_start(const char* command) {
 
     // (re-)initialize kernel page table
     for (uintptr_t addr = 0; addr < MEMSIZE_PHYSICAL; addr += PAGESIZE) {
-        int kernel_perm = PTE_P | PTE_W;
-        int general_perm = PTE_P | PTE_W | PTE_U;
+        int perm = PTE_P | PTE_W | PTE_U;
         if (addr == 0) {
             // nullptr is inaccessible even to the kernel
-            kernel_perm = 0;
-            general_perm = 0;
+            perm = 0;
+        } else if (addr < PROC_START_ADDR && addr != CONSOLE_ADDR) {
+            perm = PTE_P | PTE_W;
+        } else {
+            perm = PTE_P | PTE_W | PTE_U;
         }
         // install identity mapping
-        int r;
-        if (addr < PROC_START_ADDR && addr != CONSOLE_ADDR) {
-            r = vmiter(kernel_pagetable, addr).try_map(addr, kernel_perm);
-        } else {
-            r = vmiter(kernel_pagetable, addr).try_map(addr, general_perm);
-        }
+        int r = vmiter(kernel_pagetable, addr).try_map(addr, perm);
         assert(r == 0); // mappings during kernel_start MUST NOT fail
                         // (Note that later mappings might fail!!)
     }
@@ -159,27 +156,58 @@ void kfree(void* kptr) {
 void process_setup(pid_t pid, const char* program_name) {
     init_process(&ptable[pid], 0);
 
+    // initialize process page table
+    ptable[pid].pagetable = kalloc_pagetable();
+
+    // Isolate process page tables
+    for (uintptr_t addr = 0; addr < MEMSIZE_PHYSICAL; addr += PAGESIZE) {
+        int r = 0;
+        uintptr_t CURRENT_START_ADDR = PROC_START_ADDR + PROC_SIZE * (pid - 1);
+        if (addr == 0) {
+            r = vmiter(ptable[pid].pagetable, addr).try_map(addr, 0);
+        } else if ((CURRENT_START_ADDR <= addr && addr < CURRENT_START_ADDR + PROC_SIZE) || addr == CONSOLE_ADDR) {
+            r = vmiter(ptable[pid].pagetable, addr).try_map(addr, PTE_P | PTE_W | PTE_U);
+        } else if (addr < PROC_START_ADDR) {
+            r = vmiter(ptable[pid].pagetable, addr).try_map(addr, PTE_P | PTE_W);
+        }
+        assert(r == 0); 
+    }
+
+    check_pagetable(ptable[pid].pagetable);
+
     // obtain reference to program image
     // (The program image models the process executable.)
     program_image pgm(program_name);
 
+    log_printf("sz: %i\n", pgm.begin().size());
+
     // allocate and map process memory as specified in program image
+    int i = 0;
     for (auto seg = pgm.begin(); seg != pgm.end(); ++seg) {
-        for (uintptr_t a = round_down(seg.va(), PAGESIZE);
-             a < seg.va() + seg.size();
-             a += PAGESIZE) {
-            // `a` is the process virtual address for the next code or data page
-            // (The handout code requires that the corresponding physical
-            // address is currently free.)
-            assert(physpages[a / PAGESIZE].refcount == 0);
-            ++physpages[a / PAGESIZE].refcount;
+        i++;
+        int sz = seg.size();
+        int page_count = 0;
+        while (sz > -PAGESIZE) {
+            // Allocate memory
+            void* pa = kalloc(1);
+            assert(pa != nullptr);
+
+            // Map virtual address to acquired physical address
+            int va = seg.va() + page_count * PAGESIZE;
+            int r = vmiter(ptable[pid].pagetable, va).try_map(pa, PTE_P | PTE_W | PTE_U);
+            assert(r == 0); 
+            
+            // Decrement size, increment pagecount for current segment
+            sz -= PAGESIZE;
+            page_count++;
         }
     }
+    log_printf("segments: %i\n", i);
 
     // copy instructions and data from program image into process memory
     for (auto seg = pgm.begin(); seg != pgm.end(); ++seg) {
-        memset((void*) seg.va(), 0, seg.size());
-        memcpy((void*) seg.va(), seg.data(), seg.data_size());
+        memset((void*) vmiter(ptable[pid].pagetable, seg.va()).pa(), 0, seg.size());
+        memcpy((void*) vmiter(ptable[pid].pagetable, seg.va()).pa(), seg.data(), seg.data_size());
     }
 
     // mark entry point
@@ -188,28 +216,17 @@ void process_setup(pid_t pid, const char* program_name) {
     // allocate and map stack segment
     // Compute process virtual address for stack page
     uintptr_t stack_addr = PROC_START_ADDR + PROC_SIZE * pid - PAGESIZE;
-    // The handout code requires that the corresponding physical address
-    // is currently free.
-    assert(physpages[stack_addr / PAGESIZE].refcount == 0);
-    ++physpages[stack_addr / PAGESIZE].refcount;
+
+    // Allocate and map memory for stack
+    void* pa = kalloc(1);
+    assert(pa != nullptr);
+    int r = vmiter(ptable[pid].pagetable, stack_addr).try_map(pa, PTE_P | PTE_W | PTE_U);
+    assert(r == 0); 
+    
     ptable[pid].regs.reg_rsp = stack_addr + PAGESIZE;
 
     // mark process as runnable
     ptable[pid].state = P_RUNNABLE;
-
-    // initialize process page table
-    ptable[pid].pagetable = kalloc_pagetable();
-
-    while (true) {}
-    
-    // Copy mapping from kernel but isolate processes
-    int r;
-    for (uintptr_t addr = 0; addr < MEMSIZE_PHYSICAL; addr += PAGESIZE) {
-        if (((PROC_START_ADDR + PROC_SIZE * (pid - 1)) <= addr && addr < (PROC_START_ADDR + PROC_SIZE * (pid))) || addr == CONSOLE_ADDR) {
-            r = vmiter(ptable[pid].pagetable, addr).try_map(addr, PTE_P | PTE_W | PTE_U);
-            assert(r == 0);
-        }
-    }
 }
 
 
@@ -361,9 +378,11 @@ uintptr_t syscall(regstate* regs) {
 
 int syscall_page_alloc(uintptr_t addr) {
     if (addr >= PROC_START_ADDR && addr < MEMSIZE_VIRTUAL && addr % PAGESIZE == 0) {
-        assert(physpages[addr / PAGESIZE].refcount == 0);
-        ++physpages[addr / PAGESIZE].refcount;
-        memset((void*) addr, 0, PAGESIZE);
+        void* pa = kalloc(1);
+        assert(pa != nullptr);
+        int r = vmiter(current->pagetable, addr).try_map(pa, PTE_P | PTE_W | PTE_U);
+        assert(r == 0);
+        memset((void*) pa, 0, PAGESIZE);
         return 0;
     } else {
         return -1;
@@ -389,7 +408,7 @@ void schedule() {
         // If spinning forever, show the memviewer.
         if (spins % (1 << 12) == 0) {
             memshow();
-            log_printf("%u\n", spins);
+            log_printf("[spinning] %u\n", spins);
         }
     }
 }
