@@ -378,7 +378,16 @@ sub run_compare ($$$$$$) {
     }
 }
 
+sub push_expansion (\@$) {
+    my ($a, $x) = @_;
+    foreach my $t (split(/[\s,]+/, $x)) {
+        push @$a, $t if $t ne "";
+    }
+}
+
+
 my ($KeepGoing) = 0;
+my ($Sanitizer) = 0;
 
 while (@ARGV > 0) {
     if ($ARGV[0] eq "-c" && @ARGV > 1 && $ARGV[1] =~ /^\d+$/) {
@@ -391,10 +400,10 @@ while (@ARGV > 0) {
     } elsif ($ARGV[0] eq "-k") {
         $KeepGoing = 1;
     } elsif ($ARGV[0] eq "-r" && @ARGV > 1) {
-        push @Restrict, $ARGV[1];
+        push_expansion @Restrict, $ARGV[1];
         shift @ARGV;
     } elsif ($ARGV[0] =~ /^-r(.+)$/) {
-        push @Restrict, $1;
+        push_expansion @Restrict, $1;
     } elsif ($ARGV[0] eq "-m") {
         $Make = 1;
     } elsif ($ARGV[0] eq "-e") {
@@ -406,6 +415,7 @@ while (@ARGV > 0) {
         $Exec = $1;
     } elsif ($ARGV[0] =~ /=/) {
         push @Makeargs, $ARGV[0];
+        $Sanitizer = 1 if $ARGV[0] =~ /\ASAN=(?!\z|0\z)/;
     } elsif ($ARGV[0] =~ /\A-/) {
         print STDERR "Usage: ./check.pl [-c CONTEXT] [-l] [TESTS...]\n";
         print STDERR "       ./check.pl -x EXECFILE\n";
@@ -423,21 +433,29 @@ foreach my $arg (@ARGV) {
         push @Makeargs, $arg;
     } else {
         $arg =~ s/test//g;
-        push @testargs, $arg;
+        push_expansion @testargs, $arg;
     }
 }
 
 sub test_class ($;@) {
-    my($test) = shift @_;
-    foreach my $x (@_) {
-        if ($test eq $x
-            || ($x =~ m{(?:\A|[,\s])(\d+)(?:[,\s]|\z)} && $test == $1)
-            || ($x =~ m{(?:\A|[,\s])(\d+)-(\d+)(?:[,\s]|\z)} && $test >= $1 && $test <= $2)
-            || $x =~ m{(?:\A|[,\s])$test(?:[,\s]|\z)}
-            || ($x =~ m{(?:\A|[,\s])phase1(?:[,\s]|\z)}i && $test >= 1 && $test <= 19)
-            || ($x =~ m{(?:\A|[,\s])phase2(?:[,\s]|\z)}i && $test >= 20 && $test <= 30)
-            || ($x =~ m{(?:\A|[,\s])phase3(?:[,\s]|\z)}i && $test >= 31 && $test <= 45)
-            || ($x =~ m{(?:\A|[,\s])phase4(?:[,\s]|\z)}i && $test >= 46 && $test <= 51)) {
+    my($tn) = shift @_;
+    my($tnum) = -1;
+    if ($tn =~ /\A(?:test|)(\d*)(.*)\z/) {
+        $tn = $1 . $2;
+        $tnum = int($1);
+    }
+    foreach my $m (@_) {
+        if ($m eq $tn
+            || ($m =~ m/\A(\d+)([*a-z])\z/
+                && int($1) == $tnum
+                && ($2 eq "*" || substr($tn, -1) eq $2))
+            || ($m =~ m/\A(\d+)-(\d+)\z/ && $tnum >= $1 && $tnum <= $2)
+            || $m eq "san"
+            || $m eq "leak"
+            || ($m eq "phase1" && $tnum >= 1 && $tnum <= 19)
+            || ($m eq "phase2" && $tnum >= 20 && $tnum <= 30)
+            || ($m eq "phase3" && $tnum >= 31 && $tnum <= 45)
+            || ($m eq "phase4" && $tnum >= 46 && $tnum <= 51)) {
             return 1;
         }
     }
@@ -445,21 +463,30 @@ sub test_class ($;@) {
 }
 
 sub asan_options ($) {
-    my($test) = @_;
-    $test = int($1) if $test =~ m{\A(?:\./)?test(\d+)\z};
-    if ($LeakCheck && test_class($test, "leak")) {
+    my($tn) = @_;
+    $tn =~ s/\A\.\///;
+    if ($LeakCheck && test_class($tn, "leak")) {
         return "allocator_may_return_null=1 detect_leaks=1";
     } else {
         return "allocator_may_return_null=1 detect_leaks=0";
     }
 }
 
-sub test_runnable ($) {
-    my($number) = @_;
-    foreach my $r (@Restrict) {
-        return 0 if !test_class($number, $r);
+sub time_limit ($) {
+    my($tn) = @_;
+    if ($tn =~ /test(\d+)/ && $1 >= 27 && $1 <= 30) {
+        return $Sanitizer ? 20 : 10;
+    } else {
+        return 5;
     }
-    return !@testargs || test_class($number, @testargs);
+}
+
+sub test_runnable ($) {
+    my($tn) = @_;
+    foreach my $r (@Restrict) {
+        return 0 if !test_class($tn, $r);
+    }
+    return !@testargs || test_class($tn, @testargs);
 }
 
 sub run_make (@) {
@@ -486,57 +513,61 @@ if ($Exec) {
                      read_expected($Exec . ".cc"),
                      $ofile, $Exec . ".cc", $Exec, $out));
 } else {
-    my(@tests) = (1..45);
-    foreach my $fn (sort(glob("test[0-9][0-9].cc"), glob("test[0-9][0-9][0-9].cc"))) {
-        my($n) = +substr($fn, 4, -3);
-        push @tests, $n if !grep { $_ == $n } @tests;
+    my(@tests) = ();
+    foreach my $fn (glob("test[0-9][0-9].cc"), glob("test[0-9][0-9][0-9a-z].cc"), glob("test[0-9][0-9][0-9][a-z].cc")) {
+        push @tests, substr($fn, 0, -3);
     }
+    @tests = sort {
+        my($a1, $b1) = ($a, $b);
+        $a1 =~ s/\Atest(\d+)[a-z]?\z/$1/;
+        $b1 =~ s/\Atest(\d+)[a-z]?\z/$1/;
+        return (int($a1) <=> int($b1)) || ($a cmp $b);
+    } @tests;
+
     my($ntest, $ntestfailed) = (0, 0);
 
     if ($Test) {
-        foreach my $i (@tests) {
-            printf "test%02d\n", $i if test_runnable($i);
+        foreach my $tn (@tests) {
+            print $tn, "\n" if test_runnable($tn);
         }
         exit;
     }
     my(%need_make);
     if ($Make) {
         my(@makes);
-        foreach my $i (@tests) {
-            push @makes, sprintf("test%02d", $i) if test_runnable($i);
+        foreach my $tn (@tests) {
+            push @makes, $tn if test_runnable($tn);
         }
         my($out) = run_sh61(["make", "-s", "-n", @makes], "stdout" => "pipe");
         if ($out && $out->{status} == 0 && exists($out->{output})) {
-            foreach my $i (@tests) {
-                my ($test) = sprintf("test%02d", $i);
-                $need_make{$i} = 1 if index($out->{output}, $test) >= 0;
+            foreach my $tn (@tests) {
+                $need_make{$tn} = 1 if index($out->{output}, $tn . " ") >= 0;
             }
         } else {
-            foreach my $i (@tests) {
-                $need_make{$i} = 1;
+            foreach my $tn (@tests) {
+                $need_make{$tn} = 1;
             }
         }
     }
     $ENV{"MALLOC_CHECK_"} = 0;
-    foreach my $i (@tests) {
-        next if !test_runnable($i);
+    foreach my $tn (@tests) {
+        next if !test_runnable($tn);
         ++$ntest;
-        $ENV{"ASAN_OPTIONS"} = asan_options($i);
-        my($test) = sprintf("test%02d", $i);
-        run_make($test) if exists($need_make{$i});
-        printf STDERR "${test} ";
-        $out = run_sh61("./${test}",
+        $ENV{"ASAN_OPTIONS"} = asan_options($tn);
+        run_make($tn) if exists($need_make{$tn});
+        printf STDERR "${tn} ";
+        $out = run_sh61("./${tn}",
             "stdout" => "pipe", "stdin" => "/dev/null",
-            "time_limit" => $i >= 27 && $i <= 30 ? 10 : 5,
+            "time_limit" => time_limit($tn),
             "size_limit" => 80000);
         my ($failed) = 0;
         if (exists($out->{killed})) {
-            print_killed($test, $out);
+            print_killed($tn, $out);
             $failed = 1;
         } else {
             $failed = run_compare([split("\n", $out->{output})],
-                    read_expected("${test}.cc"),
-                    "output", "${test}.cc", "\r$test ", $out);
+                    read_expected("${tn}.cc"),
+                    "output", "${tn}.cc", "\r$tn ", $out);
         }
         if ($failed) {
             ++$ntestfailed;
@@ -552,7 +583,9 @@ if ($Exec) {
         exit(0);
     } else {
         my($color) = ($ntestpassed == 0 ? $Red : ($ntestpassed == $ntest ? $Green : $Cyan));
-        print STDERR "${color}$ntestpassed of $ntest ", ($ntest == 1 ? "test" : "tests"), " passed$Off\n";
+        if ($ntest != 1) {
+            print STDERR "${color}$ntestpassed of $ntest ", ($ntest == 1 ? "test" : "tests"), " passed$Off\n";
+        }
         exit($ntestpassed == $ntest ? 0 : 1);
     }
 }

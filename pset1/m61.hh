@@ -22,6 +22,18 @@ void m61_free(void* ptr, const char* file = __builtin_FILE(), int line = __built
 ///    is initialized to zero.
 void* m61_calloc(size_t count, size_t sz, const char* file = __builtin_FILE(), int line = __builtin_LINE());
 
+/// m61_realloc(ptr, sz, file, line)
+///    Changes the size of the dynamic allocation pointed to by `ptr`
+///    to hold at least `sz` bytes. If the existing allocation cannot be
+///    enlarged, this function makes a new allocation, copies as much data
+///    as possible from the old allocation to the new, and returns a pointer
+///    to the new allocation. If `ptr` is `nullptr`, behaves like
+///    `m61_malloc(sz, file, line). `sz` must not be 0. If a required
+///    allocation fails, returns `nullptr` without freeing the original
+///    block.
+
+void* m61_realloc(void* ptr, size_t sz, const char* file = __builtin_FILE(), int line = __builtin_LINE());
+
 
 /// m61_statistics
 ///    Structure tracking memory statistics.
