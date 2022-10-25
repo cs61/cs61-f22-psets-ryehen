@@ -174,7 +174,10 @@ void process_setup(pid_t pid, const char* program_name) {
     // (The program image models the process executable.)
     program_image pgm(program_name);
 
+    log_printf("sz: %i\n", pgm.begin().size());
+
     // allocate and map process memory as specified in program image
+    int i = 0;
     for (auto seg = pgm.begin(); seg != pgm.end(); ++seg) {
         for (uintptr_t va = round_down(seg.va(), PAGESIZE);
              va < seg.va() + seg.size();
@@ -510,7 +513,7 @@ void schedule() {
         // If spinning forever, show the memviewer.
         if (spins % (1 << 12) == 0) {
             memshow();
-            log_printf("%u\n", spins);
+            log_printf("[spinning] %u\n", spins);
         }
     }
 }
