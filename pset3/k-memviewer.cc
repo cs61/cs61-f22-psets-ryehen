@@ -178,6 +178,8 @@ uint16_t memusage::symbol_at(uintptr_t pa) const {
         if (vx == 0) {
             if (physpages[pa / PAGESIZE].used()) {
                 // Leaked page: used but not referenced by anything we know
+                log_printf("leak at: %x\n", pa);
+                assert(0 == 1);
                 return 'L' | 0x0300;
             } else {
                 return '.' | 0x0700;
