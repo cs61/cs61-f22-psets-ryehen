@@ -182,7 +182,7 @@ void process_setup(pid_t pid, const char* program_name) {
              va += PAGESIZE) {
             // `va` is the process virtual address for the next code or data page
             // Allocate memory
-            void* pa = kalloc(1);   
+            void* pa = kalloc(PAGESIZE);   
             assert(pa != nullptr);
 
             // Map virtual address to acquired physical address
@@ -204,7 +204,7 @@ void process_setup(pid_t pid, const char* program_name) {
     // Compute process virtual address for stack page
     uintptr_t stack_addr = MEMSIZE_VIRTUAL - PAGESIZE;
     
-    void* pa = kalloc(1);
+    void* pa = kalloc(PAGESIZE);
     assert(pa != nullptr);
     int r = vmiter(ptable[pid].pagetable, stack_addr).try_map(pa, PTE_P | PTE_W | PTE_U);
     assert(r == 0);
@@ -380,7 +380,7 @@ uintptr_t syscall(regstate* regs) {
 
 int syscall_page_alloc(uintptr_t addr) {
     if (addr >= PROC_START_ADDR && addr < MEMSIZE_VIRTUAL && addr % PAGESIZE == 0) {
-        void* pa = kalloc(1);
+        void* pa = kalloc(PAGESIZE);
         if (pa == nullptr) {
             return -1;
         }
@@ -431,7 +431,7 @@ int syscall_fork() {
             // Copy memory if writable
             if (srcit.writable()) {
                 // Allocate memory for copy
-                void* pa = kalloc(1);
+                void* pa = kalloc(PAGESIZE);
                 
                 // Handle failure by freeing all previously alloc'd memory
                 if (pa == nullptr) {
