@@ -399,13 +399,14 @@ int syscall_page_alloc(uintptr_t addr) {
     }
 }
 
+// Forks current process
 int syscall_fork() {
     int pid = 1;
-    while(pid <= 15 && ptable[pid].state != P_FREE) {
+    while(pid < NPROC && ptable[pid].state != P_FREE) {
         pid++;
     }
 
-    if (pid > 15) {
+    if (pid >= NPROC) {
         return -1;
     }
 
@@ -489,6 +490,7 @@ int syscall_fork() {
     return pid;
 }
 
+// Exits current process and frees all associated memory
 void syscall_exit() {
     // Mark process as free
     current->state = P_FREE;
