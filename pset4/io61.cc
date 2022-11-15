@@ -86,10 +86,8 @@ int io61_close(io61_file* f) {
 //   Returns number of bytes read
 
 int io61_fill(io61_fcache* f) {
-    // Check invariants
-    assert(f->tag <= f->pos_tag && f->pos_tag <= f->end_tag);
-    assert(f->end_tag - f->pos_tag <= f->bufsize);
-    //assert(f->end_tag == lseek(f->fd, 0, SEEK_CUR));
+    // Check invariant
+    assert(abs(f->end_tag - f->pos_tag) <= f->bufsize);
 
     // Reset cache to empty
     f->tag = f->pos_tag = f->end_tag;
@@ -112,16 +110,8 @@ int io61_fill(io61_fcache* f) {
         f->end_tag = adjusted_pos + n;
         f->tag = adjusted_pos;
     }
-    // std::cerr<< "n read: " << n << std::endl;
-    // std::cerr << "file size: " << f->filesize << std::endl;
-    // std::cerr << "pos: " << f->pos_tag << std::endl;
-    // std::cerr << "end tag: " << f->end_tag <<std::endl << std::endl; 
-    // std::cerr << "adjusted pos: " << adjusted_pos <<std::endl << std::endl; 
-    // Recheck invariants (good practice!).
-    assert(f->tag <= f->pos_tag && f->pos_tag <= f->end_tag);
-    assert(f->end_tag - f->pos_tag <= f->bufsize);
-    //assert(f->end_tag == lseek(f->fd, 0, SEEK_CUR));
-
+    // Recheck invariants
+    assert(abs(f->end_tag - f->pos_tag) <= f->bufsize);
     return n;
 }
 
@@ -145,11 +135,7 @@ int io61_readc(io61_file* f) {
 
     // Acquire next char from read cache
     buf[0] = read_cache->cbuf[read_cache->pos_tag - read_cache->tag];
-    // std::cerr << read_cache->pos_tag << std::endl; 
-    // std::cerr << read_cache->tag  << std::endl;
-    // std::cerr << buf[0] << std::endl;
-    // std::cerr << read_cache->cbuf[8191] << std::endl;
-    //assert(false);
+
 
     // Either increment or decerement pos tag depending on likelihood of reversal
     // (we are more likely to reverse if we're at the end of the file or our last lseek decremented pos)
@@ -180,7 +166,6 @@ ssize_t io61_read(io61_file* f, unsigned char* buf, size_t sz) {
         // Fill cache
         if (read_cache->pos_tag == read_cache->end_tag) {
             int nfilled =  io61_fill(read_cache);
-            //std::cerr << nfilled << std::endl;
             if (nfilled == 0) {
                 break;
             }
@@ -224,18 +209,68 @@ int io61_writec(io61_file* f, int ch) {
     // Acquire associated write cache
     io61_fcache* write_cache = write_caches[f->fd];
 
+    // Determine if we're reversing or not
+    off_t buffer_pos = write_cache->end_tag - write_cache->tag;
+    bool reversing = false;
+    if (buffer_pos < 0) {
+        buffer_pos = write_cache->bufsize - 1 + buffer_pos;
+        reversing = true;
+    }
+
     // If cache is full, flush before copying new char to it
-    if (write_cache->pos_tag - write_cache->tag == write_cache->bufsize) {
-        //std::cerr << "re flushing" << std::endl;
+    if ((buffer_pos == write_cache->bufsize && !reversing) || (buffer_pos == -1 && reversing)){
         if (io61_flush(f) == -1) {
             return -1;
         }
+
+        if (!reversing) {
+            buffer_pos = write_cache->end_tag - write_cache->tag;
+        }
+        // if (write_cache->pos_tag == 0) {
+        //     return 0;
+        // }
     }
 
-    write_cache->cbuf[write_cache->pos_tag - write_cache->tag] = ch;
-    ++write_cache->pos_tag;
-    ++write_cache->end_tag;
-    write_cache->just_sought = false;  
+    if (buffer_pos == -1 && write_cache->just_sought)  {
+        buffer_pos = write_cache->bufsize - 1;
+    }
+
+    
+    ////std::cerr << "writing start tag: " << write_cache->tag << std::endl;
+    ////std::cerr << "writing end tag: " << write_cache->end_tag << std::endl;
+    ////std::cerr << "writing pos: " << write_cache->pos_tag << std::endl;
+
+    ////std::cerr << "after pos: " << write_cache->end_tag - write_cache->tag << std::endl;
+    ////std::cerr << "file pos: " << lseek(write_cache->fd, 0, SEEK_CUR) << std::endl;
+    // ////std::cerr << "char written: " << (char) ch << std::endl;
+
+    write_cache->cbuf[buffer_pos] = ch;
+    //////std::cerr << write_cache->cbuf[0] << std::endl;
+
+    // In this case, we don't know if what we're currently writing should be seen as the beginning
+    // Or the end of the buffer, so we put it in both places
+    if (write_cache->just_sought && write_cache->pos_tag == write_cache->tag) {
+        write_cache->cbuf[write_cache->bufsize - 1] = ch;
+    }
+
+    write_cache->just_sought = false; 
+    // If cache was filled, flush
+    if (buffer_pos == 0 && reversing) {
+        if (io61_flush(f) == -1) {
+            return -1;
+        } else {
+            return 0;
+        }
+    }
+
+    if (reversing) {
+        --write_cache->pos_tag;
+        --write_cache->end_tag;
+    } else {
+        ++write_cache->pos_tag;
+        ++write_cache->end_tag;
+    }
+     
     return 0;
 }
 
@@ -252,7 +287,7 @@ ssize_t io61_write(io61_file* f, const unsigned char* buf, size_t sz) {
 
     size_t nwritten = 0;
     off_t buffer_offset = 0;
-    //std::cout << "write buf: " << std::endl << write_cache->cbuf << std::endl << std::endl;
+    // std::cerr << "write buf: " << std::endl << write_cache->cbuf << std::endl << std::endl;
     while (nwritten != sz) {
         // Determine how much space is left in write cache
         size_t bytes_writable = write_cache->tag + write_cache->bufsize - write_cache->pos_tag;
@@ -260,18 +295,11 @@ ssize_t io61_write(io61_file* f, const unsigned char* buf, size_t sz) {
         // Determine how many bytes we'll write
         size_t bytes_to_write = std::min(bytes_writable, sz - nwritten);
 
-        // if (bytes_to_write == 0) {
-        //     return 0;
-        // }
-
         // Copy from buffer to write cache
-        //std::cout << bytes_to_write << std::endl;
         memcpy(&write_cache->cbuf[write_cache->pos_tag - write_cache->tag], &buf[buffer_offset], bytes_to_write);
         if (bytes_to_write < sz) {
             buffer_offset = bytes_to_write;
         }
-        //std::cout << write_cache->cbuf << std::endl << std::endl;
-        //std::cout << buf << std::endl;
 
         // Increment cache file positions accordingly
         write_cache->pos_tag += bytes_to_write;
@@ -303,42 +331,42 @@ ssize_t io61_write(io61_file* f, const unsigned char* buf, size_t sz) {
 //    drop any data cached for reading.
 
 int io61_flush(io61_file* f) {
-    //std::cerr << "flushing..." << std::endl;
+    //std::cerr<<"flushing"<<std::endl;
     io61_fcache* cache = nullptr;
+    bool reversing = false;
     if (f->mode == O_WRONLY) {
+        // Get cache
         cache = write_caches[f->fd];
+        
         // Check invariants.
-        assert(cache->tag <= cache->pos_tag && cache->pos_tag <= cache->end_tag);
-        assert(cache->end_tag - cache->pos_tag <= cache->bufsize);
-
-        // Write cache invariant.
+        assert(abs(cache->pos_tag - cache->tag) <= cache->bufsize);
         assert(cache->pos_tag == cache->end_tag);
 
-        // std::cerr << lseek(write_cache->fd, 0, SEEK_CUR) << std::endl;
-        // std::cerr << write_cache->pos_tag << std::endl;
-
+        // Determine how many bytes to write
         int bytes_to_write = cache->pos_tag - cache->tag;
+        if (bytes_to_write < 0) {
+            reversing = true;
+            bytes_to_write = abs(bytes_to_write) + 1;
+        }
 
         // Write from cache to file
         ssize_t nwritten = 0;
         nwritten = write(f->fd, &cache->cbuf[nwritten], bytes_to_write);
-        // std::cerr << "writing " << cache->pos_tag - cache->tag << " bytes" << std::endl;
-        // std::cerr << "bytes written: " << nwritten << std::endl;
-        // std::cerr << errno << std::endl;
-        // std::cerr << "start pos: " << cache->tag << std::endl;
-        // std::cerr << "end pos: " << cache->tag + std::max((int) nwritten, 0) << std::endl;
 
         // Check all bytes were written from cache
-        if (nwritten != cache->pos_tag - cache->tag) {
+        if (nwritten != bytes_to_write) {
             if (errno == 0 || cache->final_flush) {
                 nwritten = std::max((int) nwritten, 0);
                 off_t total_written = nwritten;
-                cache->tag += nwritten;
-                while (cache->tag != cache->pos_tag) {
-                    nwritten = write(f->fd, &cache->cbuf[total_written], cache->pos_tag - cache->tag);
-                    //std::cerr << "bytes written: " << nwritten << std::endl;
-                    cache->tag += std::max((int) nwritten, 0);
-                    total_written += std::max((int) nwritten, 0);
+                int sign_corrector = 1;
+                if (cache->tag > cache->pos_tag) {
+                    sign_corrector = -1;
+                }
+                cache->tag += nwritten * sign_corrector;
+                while (cache->tag != cache->end_tag) {
+                    nwritten = write(f->fd, &cache->cbuf[total_written], abs(cache->pos_tag - cache->tag));
+                    cache->tag += std::max((int) nwritten, 0) * sign_corrector;
+                    total_written += std::max((int) nwritten, 0) * sign_corrector;
                 }
             } else {
                 return -1;
@@ -348,7 +376,11 @@ int io61_flush(io61_file* f) {
         cache = read_caches[f->fd];
     }
     
+    if (reversing) {
+        --cache->pos_tag;
+    }
     cache->tag = cache->pos_tag;
+    cache->end_tag = cache->pos_tag;
     return 0;
 }
 
@@ -360,7 +392,6 @@ int io61_seek_backward(io61_fcache* cache, off_t pos);
 //    Returns 0 on success and -1 on failure.
 
 int io61_seek(io61_file* f, off_t pos) {
-
     // Determine which cache needs to be updated
     io61_fcache* cache = nullptr;
     if (f->mode == O_RDONLY) {
@@ -368,10 +399,20 @@ int io61_seek(io61_file* f, off_t pos) {
     } else {
         cache = write_caches[f->fd];
     }
+
     assert(f->fd == cache->fd);
     
     // Detect if reversing or not and seek accordingly
-    if (pos < cache->pos_tag) {
+    if (pos == cache->pos_tag) {
+        if (cache->reversing) {
+            int r = lseek(cache->fd, pos, SEEK_SET);
+            if ( r != pos) {
+                return -1;
+            }
+        }
+        cache->just_sought = true;
+        return 0;
+    } else if (pos < cache->pos_tag) {
         return io61_seek_backward(cache, pos);
     } else {
         return io61_seek_forward(cache, pos);
@@ -381,10 +422,6 @@ int io61_seek(io61_file* f, off_t pos) {
 int io61_seek_forward(io61_fcache* cache, off_t pos) {
     // Get current file position
     off_t current_fpos = lseek(cache->fd, 0, SEEK_CUR);
-
-    // Check invariants
-    assert((cache->pos_tag <= current_fpos && cache->mode == O_RDONLY) || 
-            (cache->pos_tag >= current_fpos && cache->mode == O_WRONLY));
 
     // Update cache pos
     cache->pos_tag = pos;
@@ -412,6 +449,7 @@ int io61_seek_forward(io61_fcache* cache, off_t pos) {
     // Update cache metadata
     cache->reversing = false;
     cache->just_sought = true;
+
     return 0;
 }
 
@@ -422,15 +460,13 @@ int io61_seek_backward(io61_fcache* cache, off_t pos) {
     // Update cache pos
     cache->pos_tag = pos;
 
-    // Mark cache empty if the seek set our position
+    // Shift cache if seek set our position before
     // before the start tag
-    if (cache->pos_tag < cache->tag) {
+    if (pos < cache->tag) {
+        if (pos < cache->tag - cache->bufsize) {
+            cache->tag = pos;
+        }
         cache->end_tag = pos;
-        cache->tag = pos;
-    }
-
-    // If cache is empty, we'll need to lseek actual file too
-    if (cache->pos_tag < current_fpos - cache->bufsize && cache->mode == O_RDONLY) {
         current_fpos = lseek(cache->fd, pos, SEEK_SET);
         
         if (current_fpos != pos) {
