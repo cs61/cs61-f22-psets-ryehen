@@ -7,8 +7,9 @@ collaborators, in `AUTHORS.md`.
 
 Grading notes (if any)
 ----------------------
-
+Please go easy on me ;_;
 
 
 Extra credit attempted (if any)
 -------------------------------
+None yet
