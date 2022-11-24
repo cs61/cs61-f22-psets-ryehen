@@ -265,8 +265,20 @@ void run_list(conditional* head_conditional) {
 
     // Keeps track of most recent exit status for conditonal's sake
     bool prev_exit_status = false;
+    pid_t current_pid = -1;
+
     while(current_conditional != nullptr) {
         while (current_pipeline != nullptr) {
+            // Create subshell for background pipelines as needed
+            if (current_conditional->is_background && current_pid != 0) {
+                current_pid = fork();
+
+                // Parent shell moves on to next conditional
+                if (current_pid != 0) {
+                    break;
+                }
+            }
+
             // Only call command run if it's the only command in pipeline
             if (current_command->next_in_pipeline == nullptr) {
                 prev_exit_status = current_command->run();
@@ -274,6 +286,7 @@ void run_list(conditional* head_conditional) {
             } else {
                 prev_exit_status = current_pipeline->run();
             }
+
             // Determine whether next pipeline gets run
             // Contingent on exit status and whether linked by '&&' or '||'
             if (prev_exit_status) {
@@ -311,17 +324,23 @@ void run_list(conditional* head_conditional) {
                 current_command = nullptr;
             }
         }
+        // Exit subshell as needed
+        if (current_pid == 0) {
+            if (prev_exit_status) {
+                _exit(EXIT_SUCCESS);
+            } else {
+                _exit(EXIT_FAILURE);
+            }
+        }
+
+        // Parent moves on to next conditional
         current_conditional = current_conditional->next_in_list;
         if (current_conditional != nullptr) {
             current_pipeline = current_conditional->pipeline_child;
             current_command = current_pipeline->command_child;
         }
     }
-    // if (prev_exit_status) {
-    //     _exit(EXIT_SUCCESS);
-    // } else {
-    //     _exit(EXIT_FAILURE);
-    // }
+    
 }
 
 // parse_line(s)
@@ -383,11 +402,15 @@ conditional* parse_line(const char* s) {
             // Update 'c' to point to command in new pipeline
             c = current_pipeline->command_child;
         }
-        
+
+        if (it.type() == TYPE_BACKGROUND) {
+            current_conditional->is_background = true;
+        }
+
         shell_token_iterator next_it = it;
         ++next_it;
         // Start new conditional when we encounter ';' or '&'
-        if ((it.type() == TYPE_SEQUENCE && (next_it != parser.end())) || it.type() == TYPE_BACKGROUND) {
+        if ((next_it != parser.end()) && ((it.type() == TYPE_SEQUENCE) || (it.type() == TYPE_BACKGROUND))) {
             // Create space for next conditional
             current_conditional->next_in_list = new conditional;
             current_conditional->next_in_list->pipeline_child = new pipeline;
