@@ -461,6 +461,12 @@ void delete_tree(conditional* head_conditional) {
     }
 }
 
+void shoot_zombies() {
+    pid_t cpid;
+    int status;
+    while ((cpid = waitpid(-1, &status, WNOHANG)) > 0) {}
+}
+
 
 int main(int argc, char* argv[]) {
     FILE* command_file = stdin;
@@ -525,7 +531,7 @@ int main(int argc, char* argv[]) {
         }
 
         // Handle zombie processes and/or interrupt requests
-        // Your code here!
+        shoot_zombies();
     }
 
     return 0;
