@@ -15,51 +15,51 @@
 
 struct command {
     std::vector<std::string> args;
+
+    // Doubly linked list support
     command* next_in_pipeline = nullptr;
     command* prev_in_pipeline = nullptr;
-    pid_t pid = -1;      // process ID running this command, -1 if none
+
+    // Keep track of pid associated w process
+    pid_t pid = -1;
+
+    // Keeps track of redirected in / out / err as needed
     const char* c_in = nullptr;
     const char* c_out = nullptr;
     const char* c_err = nullptr;
-    command();
-    ~command();
 
+    // Runs command
     bool run();
-    char* const* arg_converter(std::vector<std::string> args);
 
 };
 
 struct pipeline {
+    // Support tree structure
     command* command_child = nullptr;
+    
+    // Doubly linked list support
     pipeline* next_in_conditional = nullptr;
     pipeline* prev_in_conditional = nullptr;
+
+    // Keep track of logic relationship with adjacent pipeline
     bool next_is_or = false;
     bool prev_is_or = false;
 
+    // Runs entire pipeline
     bool run();
 };
 
 struct conditional {
+    // Support tree structure
     pipeline* pipeline_child = nullptr;
+
+    // Doubly linked list support
     conditional* next_in_list = nullptr;
     conditional* prev_in_list = nullptr;
+
+    // Keep track of whether run in foreground or background
     bool is_background = false;
 };
-
-
-// command::command()
-//    This constructor function initializes a `command` structure. You may
-//    add stuff to it as you grow the command structure.
-
-command::command() {
-}
-
-
-// command::~command()
-//    This destructor function is called to delete a command.
-
-command::~command() {
-}
 
 // Helper function that performs redirection
 void redirect(const char* file, int perms, int dest) {
