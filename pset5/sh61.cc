@@ -405,30 +405,32 @@ conditional* parse_line(const char* s) {
     // The handout code treats every token as a normal command word.
     // You'll add code to handle operators.
     // Initialize new command
-    command* c = nullptr;
+    command* current_command = nullptr;
     pipeline* current_pipeline = nullptr;
     conditional* current_conditional = nullptr;
     conditional* head_conditional = nullptr;
     for (shell_token_iterator it = parser.begin(); it != parser.end(); ++it) {
         if (!current_conditional) {
             head_conditional = current_conditional = new conditional;
-            current_pipeline = new pipeline;
-            c = new command;
+            current_conditional->pipeline_child = new pipeline;
+            current_pipeline = current_conditional->pipeline_child;
+            current_pipeline->command_child = new command;
+            current_command = current_pipeline->command_child;
 
-            current_pipeline = current_conditional->pipeline_child = current_pipeline;
-            c = current_conditional->pipeline_child->command_child = c;
+            // current_pipeline = current_conditional->pipeline_child = current_pipeline;
+            // current_command = current_conditional->pipeline_child->command_child = current_command;
         }
         
         // Start new command when we encounter "|"
         if (it.type() == TYPE_PIPE) {
             // Create space for next command
-            c->next_in_pipeline = new command;
+            current_command->next_in_pipeline = new command;
 
             // Store pointer to prev command in next command
-            c->next_in_pipeline->prev_in_pipeline = c;
+            current_command->next_in_pipeline->prev_in_pipeline = current_command;
 
             // Update 'c' to point to next command
-            c = c->next_in_pipeline;
+            current_command = current_command->next_in_pipeline;
         }
 
         // Start new pipeline when we encounter '&&' or '||'
@@ -449,7 +451,7 @@ conditional* parse_line(const char* s) {
             current_pipeline = current_pipeline->next_in_conditional;
 
             // Update 'c' to point to command in new pipeline
-            c = current_pipeline->command_child;
+            current_command = current_pipeline->command_child;
         }
 
         if (it.type() == TYPE_BACKGROUND) {
@@ -475,12 +477,12 @@ conditional* parse_line(const char* s) {
             current_pipeline = current_conditional->pipeline_child;
 
             // Update 'c' to point to command in next conditional's pipeline
-            c = current_pipeline->command_child;
+            current_command = current_pipeline->command_child;
 
         }
 
         if (it.type() == TYPE_NORMAL) {
-            c->args.push_back(it.str());
+            current_command->args.push_back(it.str());
         }
 
         // Adjust c_in / c_out / c_err as needed when encountering redirect operator
@@ -489,14 +491,14 @@ conditional* parse_line(const char* s) {
             ++it;
             if (it.type() == TYPE_NORMAL) {
                 if (prev_it.str() == "<") {
-                    c->c_in = (char*) malloc(strlen(it.str().c_str()) + 1);
-                    strcpy((char*) c->c_in, it.str().c_str()); 
+                    current_command->c_in = (char*) malloc(strlen(it.str().c_str()) + 1);
+                    strcpy((char*) current_command->c_in, it.str().c_str()); 
                 } else if (prev_it.str() == ">") {
-                    c->c_out = (char*) malloc(strlen(it.str().c_str()) + 1);
-                    strcpy((char*) c->c_out, it.str().c_str()); 
+                    current_command->c_out = (char*) malloc(strlen(it.str().c_str()) + 1);
+                    strcpy((char*) current_command->c_out, it.str().c_str()); 
                 } else {
-                    c->c_err = (char*) malloc(strlen(it.str().c_str()) + 1);
-                    strcpy((char*) c->c_err, it.str().c_str()); 
+                    current_command->c_err = (char*) malloc(strlen(it.str().c_str()) + 1);
+                    strcpy((char*) current_command->c_err, it.str().c_str()); 
                 }
             }
         }
@@ -519,15 +521,25 @@ void delete_tree(conditional* head_conditional) {
                 free((void*) current_command->c_out);
                 free((void*) current_command->c_err);
                 delete current_command;
+                
                 current_command = next_command;
             }
             pipeline* next_pipeline = current_pipeline->next_in_conditional;
             delete current_pipeline;
+            
             current_pipeline = next_pipeline;
+            if (current_pipeline) {
+                current_command = current_pipeline->command_child;
+            }
         }
         conditional* next_conditional = current_conditional->next_in_list;
         delete current_conditional;
+        
         current_conditional = next_conditional;
+        if (current_conditional) {
+            current_pipeline = current_conditional->pipeline_child;
+            current_command = current_pipeline->command_child;
+        }
     }
 }
 
@@ -594,7 +606,7 @@ int main(int argc, char* argv[]) {
         if (bufpos == BUFSIZ - 1 || (bufpos > 0 && buf[bufpos - 1] == '\n')) {
             if (conditional* head_conditional = parse_line(buf)) {
                 run_list(head_conditional);
-                delete head_conditional;
+                delete_tree(head_conditional);
             }
             bufpos = 0;
             needprompt = 1;
