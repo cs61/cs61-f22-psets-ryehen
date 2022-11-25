@@ -3,15 +3,14 @@ Author and collaborators
 
 Primary student
 ---------------
-(Your name.)
+Ryan Henry
 
 
 Collaborators
 -------------
-(List any other collaborators and describe help you got from other students
-in the class.)
+Discussed conceptual stuff with Cooper Bosch and helped Luis Renteria with some minor bugs
 
 
 Citations
 ---------
-(List any other sources consulted.)
+Looked at the ed board & CS61 website
