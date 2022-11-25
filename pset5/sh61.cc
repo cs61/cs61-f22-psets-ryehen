@@ -74,6 +74,48 @@ void redirect(const char* file, int perms, int dest) {
     close(fd);
 }
 
+// Helper function that changes directory
+bool change_dir(const char* dir, const char* c_in, const char* c_out, const char* c_err) {
+    // Execute redirects as needed
+    int c_in_og;
+    if (c_in) {
+        c_in_og = dup(0);
+        redirect(c_in, O_RDONLY, 0);
+    }
+    int c_out_og;
+    if (c_out) {
+        c_out_og = dup(1);
+        redirect(c_out, O_WRONLY|O_CREAT, 1);
+    }
+    int c_err_og;
+    if (c_err) {
+        c_err_og = dup(2);
+        redirect(c_err, O_WRONLY|O_CREAT, 2);
+    }
+
+    // Change directory
+    int r = chdir(dir);
+
+    // Notify user of error as needed
+    if (r == -1) {
+        std::cerr << "cd: " << dir << ": " << strerror(errno) << std::endl;
+    }
+
+    // Revert redirects as needed
+    if (c_in) {
+        dup2(c_in_og, 0);
+    }
+    if (c_out) {
+        dup2(c_out_og, 1);
+    }
+    if (c_err) {
+        dup2(c_err_og, 2);
+
+    }
+        
+    return (r != -1);
+}
+
 // COMMAND EXECUTION
 
 // command::run()
@@ -113,12 +155,15 @@ bool command::run() {
         formatted_args[i] = this->args[i].c_str();
     }
 
-    
+    // If the command is "cd", simply change directory
+    if (strcmp(formatted_args[0], "cd") == 0) {
+        return change_dir(formatted_args[1], this->c_in, this->c_out, this->c_err);
+    }
 
     // Fork and execute command
     pid_t process = fork();
     if (process == 0) {
-        // Execure redirects as needed
+        // Execute redirects as needed
         if (this->c_in) {
             redirect(this->c_in, O_RDONLY, 0);
         }
