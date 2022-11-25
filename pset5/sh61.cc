@@ -18,6 +18,9 @@ struct command {
     command* next_in_pipeline = nullptr;
     command* prev_in_pipeline = nullptr;
     pid_t pid = -1;      // process ID running this command, -1 if none
+    const char* c_in = nullptr;
+    const char* c_out = nullptr;
+    const char* c_err = nullptr;
     command();
     ~command();
 
@@ -58,6 +61,18 @@ command::command() {
 command::~command() {
 }
 
+// Helper function that performs redirection
+void redirect(const char* file, int perms, int dest) {
+    int fd = open(file, perms, 0644);
+
+    if (fd == -1) {
+        std::cerr << file << ": " << strerror(errno) << std::endl;
+        _exit(EXIT_FAILURE);
+    }
+
+    dup2(fd, dest);
+    close(fd);
+}
 
 // COMMAND EXECUTION
 
@@ -96,12 +111,24 @@ bool command::run() {
 
     for (int i = 0; i < (int) this->args.size(); i++) {
         formatted_args[i] = this->args[i].c_str();
-        //std::cerr << "arg " << i << ": " << formatted_args[i] << std::endl;
     }
+
+    
 
     // Fork and execute command
     pid_t process = fork();
     if (process == 0) {
+        // Execure redirects as needed
+        if (this->c_in) {
+            redirect(this->c_in, O_RDONLY, 0);
+        }
+        if (this->c_out) {
+            redirect(this->c_out, O_WRONLY|O_CREAT, 1);
+        }
+        if (this->c_err) {
+            redirect(this->c_err, O_WRONLY|O_CREAT, 2);
+        }
+        
         execvp(formatted_args[0], (char* const*) formatted_args);
         _exit(EXIT_FAILURE);
     }
@@ -162,7 +189,19 @@ bool pipeline::run() {
         // If first command in pipeline...
         if (current_command->prev_in_pipeline == nullptr) {
             if (current_pid == 0) {
-                dup2(pipe_fd[1], 1);
+                // Execute redirects as needed
+                if (current_command->c_in) {
+                    redirect(current_command->c_in, O_RDONLY, 0);
+                }
+                if (current_command->c_out) {
+                    redirect(current_command->c_out, O_WRONLY|O_CREAT, 1);
+                } else {
+                    dup2(pipe_fd[1], 1);
+                }
+                if (current_command->c_err) {
+                    redirect(current_command->c_err, O_WRONLY|O_CREAT, 2);
+                }
+
                 close(pipe_fd[0]);
                 close(pipe_fd[1]);
                 r = execvp(formatted_args[0], (char* const*) formatted_args);
@@ -174,8 +213,21 @@ bool pipeline::run() {
         // If in middle of pipeline...
         } else if (current_command->next_in_pipeline != nullptr) {
                 if (current_pid == 0) {
-                    dup2(pipe_fd[0], 0);
-                    dup2(pipe_fd_middle[1], 1);
+                    // Execute redirects as needed
+                    if (current_command->c_in) {
+                        redirect(current_command->c_in, O_RDONLY, 0);
+                    } else {
+                        dup2(pipe_fd[0], 0);
+                    }
+                    if (current_command->c_out) {
+                        redirect(current_command->c_out, O_WRONLY|O_CREAT, 1);
+                    } else {
+                        dup2(pipe_fd_middle[1], 1);
+                    }
+                    if (current_command->c_err) {
+                        redirect(current_command->c_err, O_WRONLY|O_CREAT, 2);
+                    }
+
                     close(pipe_fd[0]);
                     close(pipe_fd_middle[0]);
                     close(pipe_fd_middle[1]);
@@ -194,7 +246,19 @@ bool pipeline::run() {
         // If at end of pipeline...
         } else {
             if (current_pid == 0) {
-                dup2(pipe_fd_middle[0], 0);
+                // Execute redirects as needed
+                if (current_command->c_in) {
+                    redirect(current_command->c_in, O_RDONLY, 0);
+                } else {
+                    dup2(pipe_fd_middle[0], 0);
+                }
+                if (current_command->c_out) {
+                    redirect(current_command->c_out, O_WRONLY|O_CREAT, 1);
+                }
+                if (current_command->c_err) {
+                    redirect(current_command->c_err, O_WRONLY|O_CREAT, 2);
+                }
+                
                 close(pipe_fd_middle[0]);
                 r = execvp(formatted_args[0], (char* const*) formatted_args);
                 _exit(EXIT_FAILURE);
@@ -217,21 +281,6 @@ bool pipeline::run() {
 
     return false;
 }
-
-// // Helper function that converts args into format execvp accepts
-// char* const* command::arg_converter(std::vector<std::string> args) {
-//     // Convert command arguments
-//     int n = args.size();
-//     const char* formatted_args[n + 1];
-//     formatted_args[n] = nullptr;
-
-//     for (int i = 0; i < (int) args.size(); i++) {
-//         formatted_args[i] = args[i].c_str();
-//     }
-
-//     return (char* const*) formatted_args;
-// }
-
 
 // run_list(c)
 //    Run the command *list* starting at `c`. Initially this just calls
@@ -433,6 +482,24 @@ conditional* parse_line(const char* s) {
         if (it.type() == TYPE_NORMAL) {
             c->args.push_back(it.str());
         }
+
+        // Adjust c_in / c_out / c_err as needed when encountering redirect operator
+        if (it.type() == TYPE_REDIRECT_OP) {
+            shell_token_iterator prev_it = it;
+            ++it;
+            if (it.type() == TYPE_NORMAL) {
+                if (prev_it.str() == "<") {
+                    c->c_in = (char*) malloc(strlen(it.str().c_str()) + 1);
+                    strcpy((char*) c->c_in, it.str().c_str()); 
+                } else if (prev_it.str() == ">") {
+                    c->c_out = (char*) malloc(strlen(it.str().c_str()) + 1);
+                    strcpy((char*) c->c_out, it.str().c_str()); 
+                } else {
+                    c->c_err = (char*) malloc(strlen(it.str().c_str()) + 1);
+                    strcpy((char*) c->c_err, it.str().c_str()); 
+                }
+            }
+        }
     }
     return head_conditional;
 }
@@ -448,6 +515,9 @@ void delete_tree(conditional* head_conditional) {
         while (current_pipeline != nullptr) {
             while (current_command != nullptr) {
                 command* next_command = current_command->next_in_pipeline;
+                free((void*) current_command->c_in);
+                free((void*) current_command->c_out);
+                free((void*) current_command->c_err);
                 delete current_command;
                 current_command = next_command;
             }
