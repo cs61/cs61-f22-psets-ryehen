@@ -79,23 +79,28 @@ endif
 ifndef SAN
 SAN := $(or $(SANITIZE),$(ASAN),$(UBSAN))
 endif
-ifndef ASAN
-ASAN := $(if $(strip $(shell $(CC) -v 2>&1 | grep 'build=aarch.*target=x86')),0,1)
-endif
 ifndef TSAN
- ifeq ($(WANT_TSAN),1)
+ ifneq ($(and $(filter-out 0,$(WANT_TSAN)),$(filter 0,$(or $(ASAN),0))),)
 TSAN := $(SAN)
+ endif
+endif
+ifndef ASAN
+ ifeq ($(filter-out 0,$(or $(TSAN),0)),)
+ASAN := $(if $(strip $(shell $(CC) -v 2>&1 | grep 'build=aarch.*target=x86')),0,1)
  endif
 endif
 
 check_for_sanitizer = $(if $(strip $(shell $(CC) -fsanitize=$(1) -x c -E /dev/null 2>&1 | grep sanitize=)),$(info ** WARNING: The `$(CC)` compiler does not support `-fsanitize=$(1)`.),1)
 SANFLAGS :=
+ifneq ($(and $(filter-out 0,$(TSAN)),$(filter-out 0,$(ASAN))),)
+$(error "ASAN=1 conflicts with TSAN=1, pick one or the other")
+endif
 ifeq ($(TSAN),1)
  ifeq ($(call check_for_sanitizer,thread),1)
 SANFLAGS += -fsanitize=thread
  endif
 else
- ifneq ($(ASAN),0)
+ ifeq ($(or $(ASAN),1),1)
   ifeq ($(call check_for_sanitizer,address),1)
 SANFLAGS += -fsanitize=address
   endif
@@ -106,7 +111,7 @@ SANFLAGS += -fsanitize=leak
   endif
  endif
 endif
-ifneq ($(UBSAN),0)
+ifeq ($(or $(UBSAN),1),1)
  ifeq ($(call check_for_sanitizer,undefined),1)
 SANFLAGS += -fsanitize=undefined -fno-sanitize-recover=undefined
  endif
