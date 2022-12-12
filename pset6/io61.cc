@@ -6,10 +6,19 @@
 #include <condition_variable>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <thread>
+#include <unordered_map>
+#include <map>
+#include <iostream>
 
 // io61.cc
 //    YOUR CODE HERE!
 
+// Struct keeps track of whether region is locked and who owns it
+struct region_lock {
+    unsigned locked = 0;
+    std::thread::id owner;
+};
 
 // io61_file
 //    Data structure for io61 file wrappers.
@@ -18,6 +27,7 @@ struct io61_file {
     int fd = -1;     // file descriptor
     int mode;        // O_RDONLY, O_WRONLY, or O_RDWR
     bool seekable;   // is this file seekable?
+    size_t filesize; // How large is this file?
 
     // Single-slot cache
     static constexpr off_t cbufsz = 8192;
@@ -27,9 +37,25 @@ struct io61_file {
     off_t end_tag;   // offset one past last valid character in `cbuf`
 
     // Positioned mode
-    bool dirty = false;       // has cache been written?
+    std::atomic<bool> dirty = false;       // has cache been written?
     bool positioned = false;  // is cache in positioned mode?
+
+    // Synchronization stuff
+    std::recursive_mutex rm ;
+    std::condition_variable_any cv;
+
+    region_lock reg[9];
+
 };
+
+// Returns proper index into region lock array
+static int file_region(off_t off) {
+    if (off < 48) {
+        return 0;
+    } else {
+        return std::min((off - (off % 1024)) + 1, (off_t) 8);
+    }
+}
 
 
 // io61_fdopen(fd, mode)
@@ -52,6 +78,7 @@ io61_file* io61_fdopen(int fd, int mode) {
         f->tag = f->pos_tag = f->end_tag = 0;
     }
     f->dirty = f->positioned = false;
+    f->filesize = io61_filesize(f);
     return f;
 }
 
@@ -101,6 +128,7 @@ int io61_readc(io61_file* f) {
 
 ssize_t io61_read(io61_file* f, unsigned char* buf, size_t sz) {
     assert(!f->positioned);
+    std::unique_lock guard(f->rm);
     size_t nread = 0;
     while (nread != sz) {
         if (f->pos_tag == f->end_tag) {
@@ -150,6 +178,7 @@ int io61_writec(io61_file* f, int c) {
 
 ssize_t io61_write(io61_file* f, const unsigned char* buf, size_t sz) {
     assert(!f->positioned);
+    std::unique_lock guard(f->rm);
     size_t nwritten = 0;
     while (nwritten != sz) {
         if (f->end_tag == f->tag + f->cbufsz) {
@@ -184,7 +213,8 @@ static int io61_flush_dirty(io61_file* f);
 static int io61_flush_dirty_positioned(io61_file* f);
 static int io61_flush_clean(io61_file* f);
 
-int io61_flush(io61_file* f) {
+// Only accessible by threads w/mutex
+int locked_io61_flush(io61_file* f) {
     if (f->dirty && f->positioned) {
         return io61_flush_dirty_positioned(f);
     } else if (f->dirty) {
@@ -194,13 +224,19 @@ int io61_flush(io61_file* f) {
     }
 }
 
+int io61_flush(io61_file* f) {
+    std::unique_lock guard(f->rm);
+    return locked_io61_flush(f);
+}
+
 
 // io61_seek(f, off)
 //    Changes the file pointer for file `f` to `off` bytes into the file.
 //    Returns 0 on success and -1 on failure.
 
 int io61_seek(io61_file* f, off_t off) {
-    int r = io61_flush(f);
+    std::unique_lock guard(f->rm);
+    int r = locked_io61_flush(f);
     if (r == -1) {
         return -1;
     }
@@ -359,6 +395,28 @@ static int io61_pfill(io61_file* f, off_t off) {
 
 // FILE LOCKING FUNCTIONS
 
+// Return true if some other thread (not `std::this_thread::get_id()`)
+// has a lock on a range of `f`, and that range might overlap with the
+// range [start, start + len).
+//
+// This function may return true when another thread has a range lock on
+// `f` that *doesn’t* overlap with [start, start + len). That is, it can
+// be conservative, rather than precise. However, it *must return false*
+// if all range locks on `f` are held by *this* thread.
+//
+// The caller must have locked all mutexes required to examine `f`’s
+// range lock state.
+
+bool overlaps_with_other_lock(io61_file* f, off_t start, off_t len) {
+    int rstart = file_region(start), rend = file_region(start + len - 1);
+    for (int ri = rstart; ri <= rend; ++ri) {
+        if (f->reg[ri].locked > 0 && f->reg[ri].owner != std::this_thread::get_id()) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // io61_try_lock(f, start, len, locktype)
 //    Attempts to acquire a lock on offsets `[start, len)` in file `f`.
 //    `locktype` must be `LOCK_SH`, which requests a shared lock,
@@ -373,6 +431,18 @@ int io61_try_lock(io61_file* f, off_t start, off_t len, int locktype) {
     assert(locktype == LOCK_EX || locktype == LOCK_SH);
     if (len == 0) {
         return 0;
+    }
+
+    // Check if pre-existing overlap
+    std::unique_lock guard(f->rm);
+    if (overlaps_with_other_lock(f, start, len)) {
+        return -1;
+    }
+
+    // Add new locked region
+    for (int ri = file_region(start); ri <= file_region(start + len - 1); ++ri) {
+        ++f->reg[ri].locked;
+        f->reg[ri].owner = std::this_thread::get_id();
     }
     return 0;
 }
@@ -393,9 +463,18 @@ int io61_lock(io61_file* f, off_t start, off_t len, int locktype) {
     if (len == 0) {
         return 0;
     }
-    // The handout code polls using `io61_try_lock`.
-    while (io61_try_lock(f, start, len, locktype) != 0) {
+
+    // Use cv to wait until no longer overlaps
+    std::unique_lock guard(f->rm);
+    while (overlaps_with_other_lock(f, start, len)) {
+        f->cv.wait(guard);
     }
+
+    // Insert new locked region into region map
+    for (int ri = file_region(start); ri <= file_region(start + len - 1); ++ri) {
+        ++f->reg[ri].locked;
+        f->reg[ri].owner = std::this_thread::get_id();
+    }    
     return 0;
 }
 
@@ -410,9 +489,17 @@ int io61_unlock(io61_file* f, off_t start, off_t len) {
     if (len == 0) {
         return 0;
     }
+
+    // Release lock
+    std::unique_lock guard(f->rm);
+    for (int ri = file_region(start); ri <= file_region(start + len - 1); ++ri) {
+        --f->reg[ri].locked;
+    }
+
+    // Wake up other threads
+    f->cv.notify_all();
     return 0;
 }
-
 
 
 // HELPER FUNCTIONS
